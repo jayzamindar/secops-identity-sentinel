@@ -10,23 +10,23 @@
 # ------------------------------------------------------------------------------
 # [PROJECT_CONFIGURATION]
 # ------------------------------------------------------------------------------
-# Project Identifier:        {{PROJECT_ID}}
-# Target Package Name:       {{PACKAGE_NAME}}
-# Root Package Path:         src/{{PACKAGE_NAME}}
-# CLI Console Entrypoint:    {{PROJECT_ID}}
+# Project Identifier:        secops-identity-sentinel
+# Target Package Name:       secops_identity_sentinel
+# Root Package Path:         src/secops_identity_sentinel
+# CLI Console Entrypoint:    secops-identity-sentinel
 # Primary LLM Engine:        Loaded from GEMINI_MODEL_NAME (default: gemini-3.8-flash-high, thinkingConfig.thinkingBudget=2048)
 # Secondary Fallback Model:  openrouter/qwen-2.5-coder-32b-instruct
 # Tertiary Engine:           Deterministic SRE Heuristics (100% offline uptime)
-# MCP Protocol URI Prefix:   {{MCP_URI_PREFIX}}://
+# MCP Protocol URI Prefix:   secops://
 # Runtime Environment:       Python 3.13+ (Container: python:3.13-slim)
 # HTTP API Gateway:          FastAPI + Starlette SSE (Uvicorn non-blocking)
 # Default Service Port:      8080
-# Max Memory Ceiling:        {{MAX_MEMORY_MB}}MB ({{DEPLOY_TARGET_LABEL}})
+# Max Memory Ceiling:        2048MB (Standard Enterprise Cloud (AWS / Azure / Kubernetes))
 # Max Payload Size Ceiling:  10MB (10485760 bytes; HTTP 413 on breach)
-# Max Output Token Cap:      {{MAX_OUTPUT_TOKENS}} tokens (per request ceiling)
-# Audit Ledger Location:     data/{{DB_PREFIX}}_ledger.db (SQLite WAL mode)
+# Max Output Token Cap:      8192 tokens (per request ceiling)
+# Audit Ledger Location:     data/secops_ledger.db (SQLite WAL mode)
 # JSONL Ledger Log Dir:      audit_logs/
-# Webhook / Callback Secret: {{ENV_PREFIX}}_WEBHOOK_SECRET
+# Webhook / Callback Secret: SECOPS_IDENTITY_SENTINEL_WEBHOOK_SECRET
 # Payload Signing Secret:    PLAN_SIGNING_SECRET
 # MCP Server API Key:        MCP_API_KEY
 # ------------------------------------------------------------------------------
@@ -34,7 +34,7 @@
 > **Template Cloning & Universal Domain Adaptability Note:**
 > This repository provides a dual-layer architectural specification:
 > 1. **Universal Core Invariants (`[UNIVERSAL CORE]`):** Sections 3.3–3.7, 3.9–3.13, and Phases 5–12 define universal enterprise standards (cryptographic HMAC signing, anti-replay nonces, timing-safe auth, 10MB streaming body limits, SQLite WAL concurrency, UTF-8 I/O, LLM token cost circuit breakers, and OpenAPI 3.0 schema sanitization) that are 100% reusable across any domain (healthcare, finance, security, legal, or data platforms) and must remain intact.
-> 2. **Domain Reference Implementations (`[DOMAIN REFERENCE]`):** Sections 3.1, 3.2, 3.8, and Phases 2–4 use Cloud Infrastructure & FinOps as a concrete reference implementation. When cloning this blueprint for non-cloud domains, engineers customize the domain configuration block, canonical `ActionType` Literal Enum, deterministic execution templates, and heuristic rules while preserving the underlying risk-scoring, quarantine, and execution-overwriting patterns.
+> 2. **Domain Reference Implementations (`[DOMAIN REFERENCE]`):** Sections 3.1, 3.2, 3.8, and Phases 2–4 use Autonomous SecOps & Identity Incident Response as the active reference domain implementation. When cloning this blueprint for other domains, engineers customize the domain configuration block, canonical `ActionType` Literal Enum, deterministic execution templates, and heuristic rules while preserving the underlying risk-scoring, quarantine, and execution-overwriting patterns.
 
 ---
 
@@ -55,10 +55,10 @@ You are acting as a **Principal AI Systems Architect, Lead SRE, and Staff Securi
 
 ## 2. Technology Stack & AI Orchestration Standard
 - **Runtime:** CPython 3.13+ managed via `uv` or virtualenv (`.venv`) and containerized via `python:3.13-slim` Docker image.
-- **AI Orchestration Policy:** {{ORCHESTRATION_POLICY}}
+- **AI Orchestration Policy:** Strictly forbid heavy AI orchestrator frameworks (LangChain, LlamaIndex, crewAI, AutoGen). All agent reasoning, tool calling, and workflow dispatching must be executed via direct, typed SDK/REST calls.
 - **Validation & Data Contracts:** `pydantic` v2 (`ConfigDict(extra="forbid", frozen=True)` for all data contracts, schemas, and inter-agent messages).
-- **Primary AI Reasoning Engine:** Google Gemini (primary model ID dynamically loaded from `GEMINI_MODEL_NAME`, default `gemini-3.8-flash-high`, never hardcoded in client logic) configured with dynamic `thinkingConfig.thinkingBudget` (default: 2048) and native constrained decoding via `generationConfig.responseSchema`. Capped at a maximum output token ceiling of **{{MAX_OUTPUT_TOKENS}} tokens** per request (`maxOutputTokens={{MAX_OUTPUT_TOKENS}}`).
-- **RAM Protection Guardrail:** If active context graphs and reasoning buffers risk breaching the {{MAX_MEMORY_MB}}MB RAM ceiling, the engine must proactively drop the active reasoning round and fall back to Secondary or Tertiary engines.
+- **Primary AI Reasoning Engine:** Google Gemini (primary model ID dynamically loaded from `GEMINI_MODEL_NAME`, default `gemini-3.8-flash-high`, never hardcoded in client logic) configured with dynamic `thinkingConfig.thinkingBudget` (default: 2048) and native constrained decoding via `generationConfig.responseSchema`. Capped at a maximum output token ceiling of **8192 tokens** per request (`maxOutputTokens=8192`).
+- **RAM Protection Guardrail:** If active context graphs and reasoning buffers risk breaching the 2048MB RAM ceiling, the engine must proactively drop the active reasoning round and fall back to Secondary or Tertiary engines.
 - **API Gateway & Transports:** `fastapi` + `uvicorn` (async non-blocking endpoints, line-delimited `stdio` JSON-RPC 2.0, and authenticated Server-Sent Events `/sse`). Enforces a strict **10MB incoming body-size ceiling** returning HTTP 413 Payload Too Large / JSON-RPC error on breach.
 - **Persistence & Mutex Locking:** SQLite in WAL mode (`PRAGMA journal_mode=WAL;`) with cross-platform write-only file locking (`filelock.FileLock`) preserving MVCC for concurrent non-blocking reads.
 - **Observability:** OpenTelemetry API/SDK (`opentelemetry-api`, `opentelemetry-sdk`) with structured JSON logging and access-log secret filters.
@@ -68,17 +68,23 @@ You are acting as a **Principal AI Systems Architect, Lead SRE, and Staff Securi
 
 ## 3. Non-Negotiable Architectural & Security Invariants
 
-### 1. [DOMAIN REFERENCE: CLOUD FINOPS] Calibrated Safety Enforcement, Strict Action Enum & Quarantine Pattern
+### 1. [DOMAIN REFERENCE: SECOPS & IDENTITY] Calibrated Safety Enforcement, Strict Action Enum & Quarantine Pattern
 Every action proposed by the system must be scored on a 1–5 Safety Risk scale and strictly validated against the canonical `ActionType` Enum:
-`ActionType = Literal["TERMINATE_INSTANCE", "STOP_INSTANCE", "MODIFY_INSTANCE_TYPE", "MODIFY_S3_LIFECYCLE", "DELETE_EBS_VOLUME", "RELEASE_EIP", "ENABLE_INTELLIGENT_TIERING"]`
+`ActionType = Literal["REVOKE_SESSION", "QUARANTINE_IAM_ROLE", "BLOCK_CIDR", "ROTATE_API_KEY", "SUSPEND_SERVICE_ACCOUNT", "ENFORCE_STEP_UP_MFA", "ISOLATE_WORKLOAD"]`
 - **Strict Enum Allowlist:** If the LLM generates a target action outside this valid Enum allowlist, the `GuardrailEngine` must immediately reject the payload fail-closed and quarantine the action (`quarantined=True`, `quarantine_reason="INVALID_ACTION_ENUM_TYPE"`).
 - **Quarantine on Missing Mitigation:** Any action with Safety Risk Score $\ge 3$ lacking explicit, validated automated mitigations and deterministic rollback procedures must be quarantined (`quarantined=True`, `quarantine_reason="MISSING_MANDATORY_ROLLBACK"`). Never silently inject generic templates or execute unmitigated high-risk actions.
 
-### 2. [DOMAIN REFERENCE: CLOUD FINOPS] Deterministic Execution Overwriting (Zero-Hallucination Guardrail)
-To eliminate AI hallucination vulnerabilities in cloud infrastructure operations, LLMs must never synthesize executable commands directly. The `GuardrailEngine` must unconditionally overwrite `execution_payload["iam_policy"]`, `execution_payload["aws_cli"]`, and `execution_payload["rollback"]` using deterministic Python functions mapped strictly to the internal `ActionType` matrix:
-- IAM policies must validate standard AWS ARNs (`arn:aws:ec2:*:*:instance/{res_id}`, `arn:aws:s3:::{res_id}`, etc.).
-- Wildcard permissions (`"Action": "*"`, `"Resource": "*"`) are strictly forbidden.
-- Unknown resource types, unallowlisted actions, or invalid identifiers must raise an immediate `ValueError` and trigger fail-closed quarantine.
+### 2. [DOMAIN REFERENCE: SECOPS & IDENTITY] Deterministic Execution Overwriting (Zero-Hallucination Guardrail)
+To eliminate AI hallucination vulnerabilities in SecOps and identity containment operations, LLMs must never synthesize executable containment commands directly. The `GuardrailEngine` must unconditionally overwrite `execution_payload["iam_policy"]`, `execution_payload["cli_command"]`, and `execution_payload["rollback"]` using deterministic Python functions mapped strictly to the internal `ActionType` matrix (`REVOKE_SESSION`, `QUARANTINE_IAM_ROLE`, `BLOCK_CIDR`, `ROTATE_API_KEY`, `SUSPEND_SERVICE_ACCOUNT`, `ENFORCE_STEP_UP_MFA`, `ISOLATE_WORKLOAD`):
+- **Deterministic Payload Templates:**
+  - `REVOKE_SESSION`: Target OAuth session ID or user principal. Overwrite `cli_command` with deterministic identity provider session revocation command; `rollback` with deterministic human-gated ITSM security ticket / incident alert (preventing automated re-activation of compromised sessions).
+  - `QUARANTINE_IAM_ROLE`: Target IAM role ARN (`arn:aws:iam::{account_id}:role/{role_name}`). Overwrite `iam_policy` attaching an explicit `DenyAll` boundary or inline deny restriction; `rollback` with boundary detachment script.
+  - `BLOCK_CIDR`: Target IPv4/IPv6 CIDR block. Enforce canonical normalization via `ipaddress.ip_network(cidr, strict=False)` to its canonical network representation (`net.network_address/net.prefixlen`), stripping host bits (e.g. `10.0.0.5/24` $\to$ `10.0.0.0/24`). If an IPv6 CIDR is IPv4-mapped (`net.ipv4_mapped`), unwrap to IPv4 and enforce IPv4 constraints. Overwrite `cli_command` with deterministic security group or network ACL deny rule; `rollback` with rule removal command. Enforce strict CIDR prefix limits (prefix $\ge /16$ for IPv4, prefix $\ge /48$ for IPv6) and strictly forbid `0.0.0.0/0` and `::/0` default route blackholes.
+  - `ROTATE_API_KEY`: Target API key identifier or service credential. Overwrite `cli_command` with key deactivation and secondary key generation; `rollback` with deterministic human-gated ITSM security ticket (preventing automated re-activation of compromised credentials).
+  - `SUSPEND_SERVICE_ACCOUNT`: Target service account email matching strict regex (`^[a-z0-9-]+@[a-z0-9-]+\.iam\.gserviceaccount\.com$`). Overwrite `cli_command` with account disablement command; `rollback` with account enablement command.
+  - `ENFORCE_STEP_UP_MFA`: Target user identity/session. Overwrite `cli_command` with conditional access / auth context step-up challenge; `rollback` with default MFA policy restoration.
+  - `ISOLATE_WORKLOAD`: Target workload identifier or container instance. Overwrite `cli_command` swapping network security groups to an isolated quarantine group denying all ingress/egress except forensic capture; `rollback` with original network security group restoration.
+- **Strict Identifier Validation & Zero Wildcards:** Validate strict resource identifier formats (e.g., IAM role ARNs `arn:aws:iam::{account_id}:role/{role_name}`, canonical normalized IPv4/IPv6 CIDR blocks, OAuth session IDs, service account emails `sa@{project}.iam.gserviceaccount.com`). Wildcard permissions (`"Action": "*"`, `"Resource": "*"`) and internet-wide blackholes (`0.0.0.0/0`, `::/0`) are strictly forbidden. Unknown resource types, unallowlisted actions, or invalid identifiers must raise an immediate `ValueError` and trigger fail-closed quarantine (`quarantined=True`, `quarantine_reason="INVALID_RESOURCE_IDENTIFIER"`).
 
 ### 3. [UNIVERSAL CORE] Full-Payload Cryptographic HMAC-SHA256 Signing, Anti-Replay & Canonical Serialization
 All remediation plans and webhook payloads must be cryptographically sealed before persistence or transmission to guarantee absolute tamper-evidence and replay immunity:
@@ -87,25 +93,25 @@ All remediation plans and webhook payloads must be cryptographically sealed befo
   `json.dumps(plan.model_dump(mode="json", exclude={"plan_digest", "plan_signature"}), sort_keys=True, separators=(',', ':'), ensure_ascii=False)`
 - **Serialization Prohibition:** Generic, non-sorted, or non-deterministic serialization methods (such as default `json.dumps()` without fixed separators, or unconstrained Pydantic serialization) are strictly forbidden to prevent cryptographic signature mismatch.
 - **Constant-Time Verification:** Verification of inbound signatures must exclusively utilize constant-time comparison via `hmac.compare_digest()` to prevent side-channel timing attacks.
-- **Fail-Closed Secret Enforcement:** If `ENVIRONMENT=production` and `PLAN_SIGNING_SECRET` or `{{ENV_PREFIX}}_WEBHOOK_SECRET` is unconfigured, empty, or set to a default value, the application must immediately fail closed with a `RuntimeError` during startup.
+- **Fail-Closed Secret Enforcement:** If `ENVIRONMENT=production` and `PLAN_SIGNING_SECRET` or `SECOPS_IDENTITY_SENTINEL_WEBHOOK_SECRET` is unconfigured, empty, or set to a default value, the application must immediately fail closed with a `RuntimeError` during startup.
 - **Request Idempotency & Deduplication Invariant:** Every remediation request and state mutation must accept and validate a unique monotonic `plan_id` / `idempotency_key`. The ledger and guardrail execution layers must check for duplicate keys; any replayed or identical request within the TTL window must return the existing cached signed plan without re-executing state mutations or generating duplicate ledger events, guaranteeing strict end-to-end idempotency.
 
 ### 4. [UNIVERSAL CORE] Timing-Safe Multi-Transport Authentication & Streaming Body-Size Defense
 All incoming requests over HTTP/SSE must authenticate against `MCP_API_KEY` via `Authorization: Bearer <key>`, `X-API-Key: <key>`, or `?apiKey=<key>`:
 - Token comparison must strictly utilize `hmac.compare_digest()`. If `ENVIRONMENT=production` or `REQUIRE_AUTH=true` and `MCP_API_KEY` is not configured, the server must fail closed with HTTP 401 Unauthorized.
 - Server access logs must register a `SensitiveQueryParamFilter` to sanitize `?apiKey=...` to `?apiKey=***`.
-- **Dual-Layer 10MB Payload Size Defense:** To isolate the system from denial-of-service memory exploitation vectors within the {{MAX_MEMORY_MB}}MB RAM ceiling, all FastAPI, SSE, and JSON-RPC transports must enforce a strict incoming payload upper body cap of 10MB (10,485,760 bytes):
+- **Dual-Layer 10MB Payload Size Defense:** To isolate the system from denial-of-service memory exploitation vectors within the 2048MB RAM ceiling, all FastAPI, SSE, and JSON-RPC transports must enforce a strict incoming payload upper body cap of 10MB (10,485,760 bytes):
   1. *Fast-Path Header Inspection:* If `Content-Length` is present and $> 10,485,760$ bytes, reject immediately with HTTP 413 Payload Too Large / JSON-RPC error code `-32600`.
   2. *Streaming Chunk Byte Counter:* For `Transfer-Encoding: chunked` or streaming requests lacking a `Content-Length` header, wrap the incoming stream in a streaming byte counter that terminates the connection and raises HTTP 413 the moment cumulative bytes exceed 10MB, before heap buffering.
 
 ### 5. [UNIVERSAL CORE] Dual-Path Resilience, High-Thinking Safeguards & Total Exception Cascade
 The system must guarantee 100% evaluation uptime through a tiered fallback cascade:
-1. **Primary:** Gemini 3.8 Flash High with exponential backoff and jitter (3 attempts on HTTP 429/503), dynamic `thinkingBudget=2048`, and output hard-capped at {{MAX_OUTPUT_TOKENS}} tokens per request (`maxOutputTokens={{MAX_OUTPUT_TOKENS}}`).
+1. **Primary:** Gemini 3.8 Flash High with exponential backoff and jitter (3 attempts on HTTP 429/503), dynamic `thinkingBudget=2048`, and output hard-capped at 8192 tokens per request (`maxOutputTokens=8192`).
 2. **Secondary:** OpenRouter/OpenAI-compatible client (e.g., Qwen 2.5 Coder 32B), automatically stripping `<think>...</think>` internal reasoning tags and markdown code blocks before JSON decoding.
 3. **Tertiary:** Deterministic SRE Heuristics engine executing offline rules (guaranteeing zero-cost GitHub CI/CD execution and 100% uptime during total AI API outages).
 - **Total Exception Cascade Guarantee:** Primary reasoning must be wrapped in an exhaustive exception handler. **Any** exception during Primary evaluation—including `httpx.TimeoutException`, `httpx.HTTPStatusError`, `json.JSONDecodeError`, `pydantic.ValidationError`, Protobuf parsing errors, empty/null model outputs, or RAM ceiling watchdog triggers—must be recorded in telemetry and immediately cascade to Secondary. Any failure in Secondary must cascade cleanly to Tertiary, with zero unhandled crashes.
-- **RAM Ceiling Watchdog:** If the structural evaluation context graph combined with token buffering runs a calculated hazard of breaching {{MEMORY_WATCH_MB}}MB (85–88% of the {{MAX_MEMORY_MB}}MB RAM ceiling), the engine must proactively cancel the generation turn and immediately drop down to the secondary or tertiary engine paths.
-- **Deterministic Static Data Catalog Fallback:** If `config/instance_mappings.json` is missing, corrupted, unreadable, or fails schema validation, the system must immediately raise a custom `CatalogNotFoundError` and automatically route execution to the Tertiary Deterministic Heuristics engine. Quiet fallbacks (such as defaulting to $0.0 savings or emitting an unhandled warning) are strictly forbidden.
+- **RAM Ceiling Watchdog:** If the structural evaluation context graph combined with token buffering runs a calculated hazard of breaching 1750MB (85–88% of the 2048MB RAM ceiling), the engine must proactively cancel the generation turn and immediately drop down to the secondary or tertiary engine paths.
+- **Deterministic Static Data Catalog Fallback:** If `config/identity_catalog.json` is missing, corrupted, unreadable, or fails schema validation, the system must immediately raise a custom `CatalogNotFoundError` and automatically route execution to the Tertiary Deterministic Heuristics engine. Quiet fallbacks (such as defaulting to empty containment or emitting an unhandled warning) are strictly forbidden.
 
 ### 6. [UNIVERSAL CORE] SQLite WAL Lock Isolation, Async Thread Offloading & Checkpoint Lifecycle
 All SQLite database and JSONL ledger operations must enforce strict concurrency isolation:
@@ -115,14 +121,14 @@ All SQLite database and JSONL ledger operations must enforce strict concurrency 
 - **SQLite Schema Versioning & Idempotent Migrations:** On application startup, the database initialization layer must query and track `PRAGMA user_version`. Schema mutations must be executed strictly via idempotent migration scripts incrementing `user_version` within a dedicated write transaction. Unversioned, ad-hoc table alterations or raw `CREATE TABLE IF NOT EXISTS` statements that bypass migration version checks are strictly forbidden, guaranteeing existing ledgers are never corrupted across deployments.
 
 ### 7. [UNIVERSAL CORE] Prompt Injection Defense & Path Traversal Isolation
-- All untrusted input data, external metrics, and freeform resource tags passed to LLM reasoning prompts must be sanitized and enclosed inside `<untrusted_telemetry_data>` XML-style delimiters.
+- All untrusted input data, external metrics, freeform telemetry fields (OAuth `scope` parameters, `User-Agent` headers, identity provider claims `sub`/`iss`/`client_id`, session tags, ASN/geo-location names), and resource tags passed to LLM reasoning prompts must be sanitized, truncated (e.g. `User-Agent` $\le 256$ chars, `scope` $\le 512$ chars), stripped of XML breakout tags (`</untrusted_telemetry_data>`, `<instruction>`, `[SYSTEM]`, `<system>`), and enclosed inside `<untrusted_telemetry_data>` XML-style delimiters. The prompt compiler must enforce system-level assertions that no user-supplied string within telemetry tags can override system rules, `ActionType` allowlists, or safety risk scoring.
 - Prompt file loaders must strictly enforce `Path.is_relative_to(prompts_dir)` to prevent path traversal attacks.
 
-### 8. [DOMAIN REFERENCE: CLOUD FINOPS] Reference Heuristic Guardrails & Safety Floors
-In multi-round evaluation or deliberation loops, stakeholder votes and state maps must be reset upon round increment. Heuristic engines must enforce hard domain safeguards:
-- **EC2 Memory Floor:** Abort downsizing if `memory_utilization_avg_pct > 65.0\%` to protect against OOM crashes.
-- **Commitment Awareness:** Zero out projected savings if resources are covered by `reserved` or `savings_plan` commitments.
-- **S3 Object Size Threshold:** Require average object size $\ge 128\text{ KB}$ before recommending `INTELLIGENT_TIERING` to avoid per-object monitoring fee penalties.
+### 8. [DOMAIN REFERENCE: SECOPS & IDENTITY] Reference Heuristic Guardrails & Safety Floors
+In multi-round evaluation or incident triage loops, containment votes and state maps must be reset upon round increment. Heuristic engines must enforce hard domain safeguards:
+- **Break-Glass Identity Protection:** Never suspend or quarantine identities tagged `role=break-glass-admin` or `tier=control-plane-root`. Tag verification must enforce strict case-insensitivity, whitespace trimming (`k.strip().lower() == "role"` and `v.strip().lower() == "break-glass-admin"`), and exact string equality (strictly forbidding wildcard or substring matches). In addition, the guardrail must verify identities against authoritative `config/identity_catalog.json`: if incoming incident telemetry lacks tags or has had tags stripped, the engine must cross-reference the canonical principal email/ARN against the catalog to resolve role tier before evaluating containment. Escalate immediately to `quarantined=True` (`quarantine_reason="PROTECTED_BREAK_GLASS_IDENTITY"`).
+- **CIDR Blast-Radius Floor & IMDS Protection:** Canonicalize CIDR blocks via `ipaddress.ip_network(cidr, strict=False)` to strip host bits (`net.network_address/net.prefixlen`), unwrap IPv4-mapped IPv6 subnets (`net.ipv4_mapped`) to IPv4, and reject `BLOCK_CIDR` actions broader than `/16` (IPv4) or `/48` (IPv6). Forbid all-zero default routes (`0.0.0.0/0`, `::/0`). Never block private control-plane subnets (RFC1918 `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), Carrier-Grade NAT (RFC6598 `100.64.0.0/10`), loopback (`127.0.0.0/8`, `::1/128`), multicast (`224.0.0.0/4`, `ff00::/8`), or link-local cloud metadata endpoints (IMDS `169.254.0.0/16`, `fe80::/10`) without human break-glass approval.
+- **Impossible-Travel & Token Velocity Threshold:** Trigger deterministic high-severity containment when geo-velocity exceeds 900 km/h across distinct ASN/country pairs or API key privilege-escalation calls exceed 15/min.
 
 ### 9. [UNIVERSAL CORE] OpenAPI 3.0 Strict Schema Sanitization (Allowlist Protobuf Compliance)
 When binding Pydantic schemas to Gemini `responseSchema`:
@@ -133,10 +139,10 @@ When binding Pydantic schemas to Gemini `responseSchema`:
 - **Object Schema Preservations:** If the schema contains variable metadata mapping dictionaries (e.g. `dict[str, Any]` fields), the extraction code must re-inject an explicit `{'type': 'object'}` component token flag right after cleaning out forbidden properties variables to ensure the Gemini internal Protobuf C++ parser recognizes the dynamic scope appropriately without throwing validation exceptions.
 - Explicitly exclude `execution_payload` (and any untyped `dict[str, Any]` fields) from the LLM `responseSchema` before sending to Gemini; these must be populated deterministically by `GuardrailEngine` after LLM inference.
 
-### 10. [UNIVERSAL CORE] Cloud-Native Volume Portability, {{MAX_MEMORY_MB}}MB RAM Ceiling & Audit Log Quotas
+### 10. [UNIVERSAL CORE] Cloud-Native Volume Portability, 2048MB RAM Ceiling & Audit Log Quotas
 - All storage paths (`DB_PATH`, `AUDIT_LOG_DIR`) must be configurable via environment variables.
-- In containerized environments, the entire process must execute as a non-root user (`sentinel:sentinel`, UID 10001) and stay strictly within a **{{MAX_MEMORY_MB}}MB RAM ceiling** (suitable for {{DEPLOY_TARGET_LABEL}}).
-- **Audit Log Rotation & Storage Retention Quota:** To prevent disk exhaustion on {{DEPLOY_TARGET_LABEL}} storage (e.g. 8GB–20GB root volumes), `audit_logs/` JSONL files must enforce daily rotation (`audit-YYYY-MM-DD.jsonl`), a 50MB per-file ceiling, and automated retention pruning (`AUDIT_LOG_MAX_RETENTION_DAYS=30`, cumulative storage cap of 500MB via `AUDIT_LOG_MAX_SIZE_MB=500`).
+- In containerized environments, the entire process must execute as a non-root user (`sentinel:sentinel`, UID 10001) and stay strictly within a **2048MB RAM ceiling** (suitable for Standard Enterprise Cloud (AWS / Azure / Kubernetes)).
+- **Audit Log Rotation & Storage Retention Quota:** To prevent disk exhaustion on Standard Enterprise Cloud (AWS / Azure / Kubernetes) storage (e.g. 8GB–20GB root volumes), `audit_logs/` JSONL files must enforce daily rotation (`audit-YYYY-MM-DD.jsonl`), a 50MB per-file ceiling, and automated retention pruning (`AUDIT_LOG_MAX_RETENTION_DAYS=30`, cumulative storage cap of 500MB via `AUDIT_LOG_MAX_SIZE_MB=500`).
 
 ### 11. [UNIVERSAL CORE] Centralized Modular Prompt Registry (`modular_prompt.md`)
 All modular system prompts, domain prompt templates, and agent instructions created or modified during development must be saved, indexed, and maintained inside `modular_prompt.md` at the repository root (synchronized with any runtime prompt modules under `prompts/modules/`). Never scatter undocumented prompts inline inside Python source files.
@@ -169,7 +175,7 @@ Dumping unindexed, raw multi-megabyte log files, large CSVs, or whole database d
 - **API Versioning & Protocol Negotiation:** All HTTP/SSE endpoints must support versioned routing prefixed with `/v1/` (`/v1/sse`, `/v1/messages`, `/v1/health`) alongside root backward-compatibility aliases (`/sse`, `/messages`, `/health`). For MCP transports (`stdio` and `SSE`), the server must implement protocol version negotiation during initialization (`initialize` method responding with supported protocol versions, e.g. `2024-11-05`), rejecting incompatible protocol major versions with JSON-RPC error code `-32602`.
 
 ### MCP Resources & Prompts Namespace
-- All resource URIs must use the project prefix: `{{MCP_URI_PREFIX}}://...` (e.g., `{{MCP_URI_PREFIX}}://audit/ledger`, `{{MCP_URI_PREFIX}}://policies/risk-matrix`, `{{MCP_URI_PREFIX}}://config/instance-mappings`, `{{MCP_URI_PREFIX}}://runbooks/waste-audit`).
+- All resource URIs must use the project prefix: `secops://...` (e.g., `secops://audit/ledger`, `secops://policies/risk-matrix`, `secops://config/identity-catalog`, `secops://runbooks/incident-triage`).
 - MCP prompts must be registered with typed argument schemas and descriptive runbooks.
 
 ---
@@ -183,11 +189,11 @@ Every deployment must expose and track telemetry according to the **Four Golden 
 | **Latency** | p50, p95, p99 request duration | p99 $> 3500\text{ ms}$ (AI), $> 500\text{ ms}$ (Rules) | Scale compute / inspect backoff |
 | **Traffic** | Requests per second, active SSE streams | Sudden $10\times$ surge | Rate limit enforcement |
 | **Errors** | HTTP 4xx / 5xx error budget | $> 0.1\%$ error rate over 5 min | Inspect error logs / failover |
-| **Saturation** | Memory ceiling ({{MAX_MEMORY_MB}}MB watch) | $> {{MEMORY_WATCH_MB}}\text{ MB}$ ($85\text{--}88\%$ of {{MAX_MEMORY_MB}}MB) | Trigger memory GC / drop active round |
+| **Saturation** | Memory ceiling (2048MB watch) | $> 1750\text{ MB}$ ($85\text{--}88\%$ of 2048MB) | Trigger memory GC / drop active round |
 | **Payload Size** | Incoming request body byte count | Request $> 10\text{ MB}$ | Reject with HTTP 413 / error |
 | **Ledger Health** | SQLite WAL file size | `*.db-wal > 50\text{ MB}` | Run `PRAGMA wal_checkpoint(TRUNCATE)` |
 | **Disk Storage** | `audit_logs/` directory disk usage | `audit_logs/ > 500\text{ MB}` or file age $> 30\text{ d}$ | Trigger automated log rotation & retention prune |
-| **AI Tokens** | Gemini thinkingBudget vs. output | Output $> {{MAX_OUTPUT_TOKENS}}$ tokens per request | Enforce token ceiling / inspect loop |
+| **AI Tokens** | Gemini thinkingBudget vs. output | Output $> 8192$ tokens per request | Enforce token ceiling / inspect loop |
 | **Cascade Rate** | Primary $\to$ Secondary $\to$ Tertiary | Fallback $> 2.0\%$ of requests | Check Gemini API quotas / status |
 | **Security** | 401 Auth failures / HMAC failures | $> 5$ auth fails/min or $> 0$ HMAC fails | Block IP / trigger security incident |
 
@@ -199,7 +205,7 @@ Before any code changes are signed off for production, the repository must under
 
 1. **Prerequisite:** 100% of automated unit, integration, and security tests must pass cleanly.
 2. **Adversarial Red-Team Prompting:** Export core schemas, prompt templates, guardrail modules, and documentation, and submit them to secondary frontier models (Claude 3.7/4 Sonnet, OpenAI o3/GPT-4o, Qwen 2.5 Coder 32B) with the following audit mandate:
-   > *"Act as an Adversarial Principal Security Engineer and Lead SRE. Review these schemas, heuristics, and execution paths. Identify subtle race conditions, silent failure modes, prompt injection bypasses, edge-case arithmetic bugs, or FinOps pricing traps."*
+   > *"Act as an Adversarial Principal Security Engineer and Lead SRE. Review these schemas, heuristics, and execution paths. Identify subtle race conditions, silent failure modes, prompt injection bypasses, edge-case arithmetic bugs, or SecOps blast-radius / identity lockout traps."*
 3. **Finding Conversion:** Every verified finding must be converted into an automated regression test in `tests/` before deploying the fix. No finding may be closed through documentation changes alone.
 
 ---
@@ -217,7 +223,7 @@ When resolving requirements, architectural decisions, or ambiguity, adhere to th
 7. `docs/URD.md` (User Requirements: personas, workflows, use cases)
 8. `docs/ARCHITECTURE.md` (C4 diagrams, system boundaries, sequence flows)
 9. `docs/MONITORING_AND_OBSERVABILITY.md` (Operational telemetry, metrics, and alerting runbooks)
-10. `docs/{{CLOUD_DEPLOYMENT_GUIDE}}` (Turnkey deployment runbooks and infrastructure specs)
+10. `docs/Cloud_Deployment_Guide.md` (Turnkey deployment runbooks and infrastructure specs)
 
 ---
 
@@ -228,7 +234,7 @@ When resolving requirements, architectural decisions, or ambiguity, adhere to th
 - **Mandatory Local & CI/CD Verification Gate:** Before marking any checklist item `[x]` or moving to the next item, you MUST verify that:
   1. `ruff check src/ tests/` and `ruff format --check src/ tests/` pass with zero warnings (during Phase 0 and Phase 1 before Python sources exist under `src/`, static validation syntax analysis must run exclusively on Markdown hyperlinked integrity, schema validation files, and configuration syntax, preventing empty directory tool errors from breaking the pipeline).
   2. `mypy src/` passes under strict static typing (applicable once Python packages are initialized under `src/`).
-  3. `pytest -v --cov=src/{{PACKAGE_NAME}} --cov-fail-under=90` passes at 100% (applicable once test suite is active; during Phase 0 documentation only Markdown link integrity and file verification apply).
+  3. `pytest -v --cov=src/secops_identity_sentinel --cov-fail-under=90` passes at 100% (applicable once test suite is active; during Phase 0 documentation only Markdown link integrity and file verification apply).
   4. **CI/CD Gate:** For Phases 0–6 (prior to Phase 7.2), passing local `ruff`, `mypy`, and `pytest` checks satisfies the CI gate. Once Phase 7.2 is complete, remote GitHub Actions CI/CD workflows must also cover the module and pass cleanly before advancing to the next task.
 - **Anti-Test-Cheating & Verifiable Proof Gate:** Before marking any task complete (`[x]`), the agent must provide verbatim terminal proof of passing tests and coverage ($\ge 90\%$). Tampering with test files, assertions, coverage thresholds, or adding `@pytest.mark.skip` / `xfail` to force a passing status is strictly forbidden and constitutes an immediate integrity violation. Mocks are restricted solely to external network boundaries; internal logic and guardrails must never be self-mocked.
 - **3-Strike Anti-Looping Circuit Breaker:** If a `ruff`, `mypy`, `pytest`, or build command fails **3 consecutive times** on the same module or error, the AI agent MUST immediately halt execution rather than looping indefinitely. It must log the exact error trace, root cause analysis, and attempted fixes in `Blueprint_Debug_Log.md` (under Section 2) and escalate to the human engineer for guidance.
