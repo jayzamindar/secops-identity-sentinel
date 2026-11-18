@@ -1,0 +1,31 @@
+# ==============================================================================
+# Enterprise Pre-Commit Repository Hygiene Configuration
+# GEMINI.md Section 1 & Enterprise Blueprint Phase 9.15
+# ==============================================================================
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-added-large-files
+        args: ["--maxkb=500"]
+      - id: detect-private-key
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.9
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: block-dotenv-files
+        name: Block .env files from being committed
+        entry: python -c 'import sys, os; bad = [f for f in sys.argv[1:] if os.path.basename(f) == ".env" or os.path.basename(f).startswith(".env.")]; sys.exit(f"ERROR: Committing .env secrets file {bad} is strictly forbidden!" if bad else 0)'
+        language: system
+        types: [file]
+        stages: [pre-commit]

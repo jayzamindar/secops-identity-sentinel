@@ -192,8 +192,73 @@ def clean_gemini_schema(
     return sanitized
 
 
+def validate_gemini_schema(
+    schema: dict[str, Any],
+    path: str = "root",
+) -> tuple[bool, list[str]]:
+    """
+    Validate that a schema strictly adheres to Gemini Protobuf C++ parser constraints.
+
+    Verifies:
+    1. Zero `$defs`, `definitions`, or `$ref` pointers remain.
+    2. Zero `anyOf` or `oneOf` unions remain.
+    3. Zero forbidden properties like `additionalProperties`, `$schema`, `minimum`, `maximum`.
+    4. Object schema keys (outside properties maps) belong to `ALLOWED_GEMINI_FIELDS`.
+    5. Zero `execution_payload` fields are exposed in schema properties or required lists.
+
+    Returns:
+        tuple[bool, list[str]]: (is_valid, violations)
+    """
+    violations: list[str] = []
+
+    def _walk(node: Any, current_path: str, is_properties_map: bool = False) -> None:
+        if isinstance(node, list):
+            for idx, item in enumerate(node):
+                _walk(item, f"{current_path}[{idx}]", is_properties_map=False)
+            return
+
+        if not isinstance(node, dict):
+            return
+
+        if is_properties_map:
+            for prop_name, prop_schema in node.items():
+                if prop_name in EXCLUDED_PAYLOAD_FIELDS:
+                    violations.append(
+                        f"Forbidden payload field '{prop_name}' at {current_path}.{prop_name}"
+                    )
+                _walk(prop_schema, f"{current_path}.{prop_name}", is_properties_map=False)
+            return
+
+        for key, value in node.items():
+            if key in ("$ref", "$defs", "definitions"):
+                violations.append(
+                    f"Unresolved reference or definition key '{key}' found at {current_path}"
+                )
+            elif key in ("anyOf", "oneOf"):
+                violations.append(f"Uncollapsed union key '{key}' found at {current_path}")
+            elif key not in ALLOWED_GEMINI_FIELDS:
+                violations.append(
+                    f"Forbidden field '{key}' not in ALLOWED_GEMINI_FIELDS at {current_path}"
+                )
+            elif key == "properties" and isinstance(value, dict):
+                _walk(value, f"{current_path}.properties", is_properties_map=True)
+            elif key == "items":
+                _walk(value, f"{current_path}.items", is_properties_map=False)
+
+        if "required" in node and isinstance(node["required"], list):
+            for req in node["required"]:
+                if req in EXCLUDED_PAYLOAD_FIELDS:
+                    violations.append(
+                        f"Forbidden payload field '{req}' in required list at {current_path}"
+                    )
+
+    _walk(schema, path, is_properties_map=False)
+    return len(violations) == 0, violations
+
+
 __all__: list[str] = [
     "ALLOWED_GEMINI_FIELDS",
     "EXCLUDED_PAYLOAD_FIELDS",
     "clean_gemini_schema",
+    "validate_gemini_schema",
 ]

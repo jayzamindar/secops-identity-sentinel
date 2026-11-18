@@ -252,4 +252,10 @@ secops-identity-sentinel serve --transport sse --host 0.0.0.0 --port 8080
 | **Cross-Platform I/O**| Complete portability across OS runtimes | Explicit `encoding="utf-8"` on all file I/O | [`GEMINI.md`](GEMINI.md) Section 1 |
 
 ---
+
+## 8. Architectural Documentation & Operational Guides
+- [Ephemeral Ledger & Serverless Storage Architecture](docs/EPHEMERAL_LEDGER_ARCHITECTURE.md)
+- [Security Advisory: API Key Transmission & Distributed Ledger Durability](docs/SECURITY_ADVISORY.md)
+
+---
 *Autonomous SecOps & Identity Sentinel — Enterprise Cybersecurity Architecture.*
