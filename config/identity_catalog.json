@@ -1,0 +1,54 @@
+{
+  "version": "1.0.0",
+  "principals": {
+    "root-admin@enterprise.internal": {
+      "principal_id": "root-admin@enterprise.internal",
+      "role": "break-glass-admin",
+      "tier": "control-plane-root",
+      "department": "Global Threat Operations",
+      "is_break_glass": true
+    },
+    "break-glass-admin@enterprise.internal": {
+      "principal_id": "break-glass-admin@enterprise.internal",
+      "role": "break-glass-admin",
+      "tier": "control-plane-root",
+      "department": "SecOps Core Architecture",
+      "is_break_glass": true
+    },
+    "arn:aws:iam::123456789012:role/break-glass-admin": {
+      "principal_id": "arn:aws:iam::123456789012:role/break-glass-admin",
+      "role": "break-glass-admin",
+      "tier": "control-plane-root",
+      "department": "Cloud Platform Engineering",
+      "is_break_glass": true
+    },
+    "control-plane-root@enterprise.internal": {
+      "principal_id": "control-plane-root@enterprise.internal",
+      "role": "platform-architect",
+      "tier": "control-plane-root",
+      "department": "Infrastructure Reliability",
+      "is_break_glass": true
+    },
+    "incident-commander@enterprise.internal": {
+      "principal_id": "incident-commander@enterprise.internal",
+      "role": "incident-commander",
+      "tier": "control-plane-root",
+      "department": "SecOps Incident Response",
+      "is_break_glass": true
+    },
+    "secops-ci-bot@enterprise.iam.gserviceaccount.com": {
+      "principal_id": "secops-ci-bot@enterprise.iam.gserviceaccount.com",
+      "role": "automation-service",
+      "tier": "tier-2-workload",
+      "department": "Platform CI/CD",
+      "is_break_glass": false
+    },
+    "developer@enterprise.internal": {
+      "principal_id": "developer@enterprise.internal",
+      "role": "software-engineer",
+      "tier": "tier-3-user",
+      "department": "Application Development",
+      "is_break_glass": false
+    }
+  }
+}
