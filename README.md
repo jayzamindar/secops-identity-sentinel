@@ -78,13 +78,13 @@ This repository enforces strict, institutional-grade documentation and operation
 │  ├── docs/PRD.md                          Product Requirements Document (FS-1 to FS-8) │
 │  ├── docs/TRD.md                          Technical Requirements Document (Contracts)  │
 │  ├── docs/ARCHITECTURE.md                 System Architecture (C4 & Sequence Flows)    │
-│  ├── docs/Cloud_Deployment_Guide.md       [Planned - Phase 10.1 Cloud Deployment]      │
-│  └── docs/MONITORING_AND_OBSERVABILITY.md [Planned - Phase 11.1 Observability Guide]   │
+│  ├── docs/Cloud_Deployment_Guide.md       AWS/Azure/K8s Production Runbooks            │
+│  └── docs/MONITORING_AND_OBSERVABILITY.md OpenTelemetry, Alerts & SRE Golden Signals   │
 │                                                                                        │
 │  AUDIT REPORTS & VERIFICATION LEDGERS                                                  │
 │  ├── Blueprint_Repo_Baseline_AuditReport.md Phase 0.1 Forensic Baseline Audit (Grades) │
 │  ├── Blueprint_Debug_Log.md                 SecOps Loopholes (SEC-LH-001 to SEC-LH-005)│
-│  └── Blueprint_Production_Readiness_Report.md [Planned - Phase 10.2 SRE Sign-Off]      │
+│  └── Blueprint_Production_Readiness_Report.md SRE Sign-Off Across 8 Pillars (100/100)  │
 └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -101,9 +101,9 @@ This repository enforces strict, institutional-grade documentation and operation
 | **Technical Specs** | [`docs/TRD.md`](docs/TRD.md) | Strict Pydantic v2 schemas, Haversine formulas, token velocity, CIDR blast-radius floors, and WAL pragmas. | **FROZEN** |
 | **System Architecture** | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | C4 architecture diagrams (Context, Container, Component), sequence flows, SQLite MVCC read-bypass, and trust perimeters. | **FROZEN** |
 | **Baseline Audit** | [`Blueprint_Repo_Baseline_AuditReport.md`](Blueprint_Repo_Baseline_AuditReport.md) | Phase 0.1 forensic baseline evaluation across 10 enterprise dimensions with letter grades and technical debt backlog. | **FROZEN** |
-| *Cloud Deployment* | `docs/Cloud_Deployment_Guide.md` | *Planned deliverable in Phase 10.1 (AWS/Azure/K8s deployment, IAM least-privilege, container pipelines).* | *Roadmap* |
-| *Observability* | `docs/MONITORING_AND_OBSERVABILITY.md` | *Planned deliverable in Phase 11.1 (OpenTelemetry, Prometheus metrics, alerting thresholds).* | *Roadmap* |
-| *Production SRE* | `Blueprint_Production_Readiness_Report.md` | *Planned deliverable in Phase 10.2 (SRE sign-off across 8 operational pillars, requiring 100/100 score).* | *Roadmap* |
+| **Cloud Deployment** | [`docs/Cloud_Deployment_Guide.md`](docs/Cloud_Deployment_Guide.md) | Standard Enterprise Cloud deployment runbook (ECS, EKS, Container Apps, AKS, Knative, IAM least-privilege). | **FROZEN** |
+| **Observability** | [`docs/MONITORING_AND_OBSERVABILITY.md`](docs/MONITORING_AND_OBSERVABILITY.md) | Operational telemetry, OpenTelemetry metrics, Prometheus alerts, and Four Golden Signals. | **FROZEN** |
+| **Production SRE** | [`Blueprint_Production_Readiness_Report.md`](Blueprint_Production_Readiness_Report.md) | SRE production readiness sign-off across 8 operational pillars (100/100 score). | **FROZEN** |
 
 ---
 
