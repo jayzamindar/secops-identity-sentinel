@@ -167,10 +167,10 @@ Every phase in this blueprint must satisfy the following **Definition of Done (D
 ### Phase 8: [UNIVERSAL CORE / DEPLOYMENT PROFILE] Turnkey Standard Enterprise Cloud (AWS / Azure / Kubernetes) Production Deployment
 *Goal: Package and blueprint deployment options for Standard Enterprise Cloud (AWS / Azure / Kubernetes) compute environments.*
 
-- [ ] **8.1 Turnkey Compute Deployment Blueprint:** Author `deploy/secops-identity-sentinel-deploy.sh` and `docker-compose.prod.yml` configured for Standard Enterprise Cloud (AWS / Azure / Kubernetes), hard-capping container memory at 2048MB (`mem_limit: 2048m`).
-- [ ] **8.2 Serverless Container Blueprint:** Author serverless container deployment configuration and Dockerfile for zero-server, pay-per-request execution.
-- [ ] **8.3 Ephemeral Ledger Architecture Guide:** Author architectural guide detailing ephemeral storage considerations across serverless container runtimes and detailing persistent volume synchronization for ledger durability.
-- [ ] **8.4 Turnkey Deployment Verification:** Verify Docker Compose local stack with volume persistence (`./data:/app/data`) and simulate deployment script execution.
+- [x] **8.1 Turnkey Compute Deployment Blueprint:** Author `deploy/secops-identity-sentinel-deploy.sh` and `docker-compose.prod.yml` configured for Standard Enterprise Cloud (AWS / Azure / Kubernetes), hard-capping container memory at 2048MB (`mem_limit: 2048m`).
+- [x] **8.2 Serverless Container Blueprint:** Author serverless container deployment configuration and Dockerfile for zero-server, pay-per-request execution.
+- [x] **8.3 Ephemeral Ledger Architecture Guide:** Author architectural guide detailing ephemeral storage considerations across serverless container runtimes and detailing persistent volume synchronization for ledger durability.
+- [x] **8.4 Turnkey Deployment Verification:** Verify Docker Compose local stack with volume persistence (`./data:/app/data`) and simulate deployment script execution.
 
 ---
 

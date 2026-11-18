@@ -1,0 +1,128 @@
+# ==============================================================================
+# Declarative Serverless Container Specification for SecOps & Identity Sentinel
+# Standard Enterprise Cloud Profile: AWS ECS Fargate / Cloud Run / Azure Apps
+# ==============================================================================
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: secops-identity-sentinel
+  labels:
+    app.kubernetes.io/name: secops-identity-sentinel
+    app.kubernetes.io/part-of: secops-identity-sentinel
+    app.kubernetes.io/component: mcp-gateway
+  annotations:
+    # Cloud Run & Knative serverless autoscaling annotations
+    run.googleapis.com/launch-stage: GA
+    run.googleapis.com/ingress: all
+    run.googleapis.com/execution-environment: gen2
+    autoscaling.knative.dev/minScale: "0"
+    autoscaling.knative.dev/maxScale: "10"
+spec:
+  template:
+    metadata:
+      labels:
+        app: secops-identity-sentinel
+      annotations:
+        # Standard Enterprise Cloud Security Annotations
+        seccomp.security.alpha.kubernetes.io/pod: runtime/default
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "10"
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      serviceAccountName: secops-identity-sentinel-sa
+      securityContext:
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+        - name: secops-identity-sentinel
+          image: secops-identity-sentinel:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http1
+              containerPort: 8080
+          resources:
+            limits:
+              cpu: "1000m"
+              memory: "2048Mi"
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+          securityContext:
+            runAsUser: 10001
+            runAsGroup: 10001
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          env:
+            - name: ENVIRONMENT
+              value: "production"
+            - name: REQUIRE_AUTH
+              value: "true"
+            - name: HOST
+              value: "0.0.0.0"
+            - name: PORT
+              value: "8080"
+            - name: DB_PATH
+              value: "/app/data/secops_ledger.db"
+            - name: AUDIT_LOG_DIR
+              value: "/app/audit_logs"
+            - name: FILELOCK_TIMEOUT_SEC
+              value: "10.0"
+            - name: PLAN_SIGNING_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: secops-sentinel-secrets
+                  key: PLAN_SIGNING_SECRET
+            - name: SECOPS_IDENTITY_SENTINEL_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: secops-sentinel-secrets
+                  key: SECOPS_IDENTITY_SENTINEL_WEBHOOK_SECRET
+            - name: MCP_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: secops-sentinel-secrets
+                  key: MCP_API_KEY
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: secops-sentinel-secrets
+                  key: GEMINI_API_KEY
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 2
+          volumeMounts:
+            - name: data-volume
+              mountPath: /app/data
+            - name: audit-volume
+              mountPath: /app/audit_logs
+            - name: tmp-volume
+              mountPath: /tmp
+      volumes:
+        - name: data-volume
+          persistentVolumeClaim:
+            claimName: secops-ledger-pvc
+        - name: audit-volume
+          persistentVolumeClaim:
+            claimName: secops-audit-pvc
+        - name: tmp-volume
+          emptyDir:
+            medium: Memory
+            sizeLimit: 64Mi

@@ -1,0 +1,49 @@
+services:
+  secops-identity-sentinel:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: secops-identity-sentinel:latest
+    container_name: secops-identity-sentinel-prod
+    user: "10001:10001"
+    read_only: true
+    security_opt:
+      - "no-new-privileges:true"
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - ENVIRONMENT=production
+      - REQUIRE_AUTH=true
+      - HOST=0.0.0.0
+      - PORT=8080
+      - DB_PATH=/app/data/secops_ledger.db
+      - AUDIT_LOG_DIR=/app/audit_logs
+      - FILELOCK_TIMEOUT_SEC=10.0
+      - PLAN_SIGNING_SECRET=${PLAN_SIGNING_SECRET}
+      - SECOPS_IDENTITY_SENTINEL_WEBHOOK_SECRET=${SECOPS_IDENTITY_SENTINEL_WEBHOOK_SECRET}
+      - MCP_API_KEY=${MCP_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ./data:/app/data:rw
+      - ./audit_logs:/app/audit_logs:rw
+    mem_limit: 2048m
+    memswap_limit: 2048m
+    deploy:
+      resources:
+        limits:
+          memory: 2048M
+        reservations:
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
