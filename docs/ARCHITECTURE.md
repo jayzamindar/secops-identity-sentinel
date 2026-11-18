@@ -17,6 +17,8 @@
   - Technical Requirements Document: [`docs/TRD.md`](TRD.md)
   - User Requirements Document: [`docs/URD.md`](URD.md)
   - Project Overview & Architecture: [`README.md`](../README.md)
+  - Ephemeral Ledger Architecture: [`docs/EPHEMERAL_LEDGER_ARCHITECTURE.md`](EPHEMERAL_LEDGER_ARCHITECTURE.md)
+  - Security Advisory: [`docs/SECURITY_ADVISORY.md`](SECURITY_ADVISORY.md)
   - Forensic Baseline Audit: [`Blueprint_Repo_Baseline_AuditReport.md`](../Blueprint_Repo_Baseline_AuditReport.md)
   - Incident & Debugging Ledger: [`Blueprint_Debug_Log.md`](../Blueprint_Debug_Log.md)
 
@@ -442,38 +444,55 @@ src/secops_identity_sentinel/
 ├── __init__.py                    # Target package root & version declaration
 ├── cli.py                         # Console entrypoint (secops-identity-sentinel)
 ├── config.py                      # Pydantic v2 application settings & environment bindings
+├── compat.py                      # Cross-platform compatibility abstractions
 ├── observability.py               # OpenTelemetry metrics, structured JSON logging & secret filters
 ├── models/                        # Immutable Pydantic v2 data contracts (ConfigDict(extra="forbid", frozen=True))
 │   ├── __init__.py
 │   ├── telemetry.py               # GeoLocation, IdentityTelemetryEvent, CompactedTelemetryBatch
 │   ├── actions.py                 # ActionType Literal Enum, ExecutionPayload, RemediationAction
-│   └── plan.py                    # SignedRemediationPlan, PlanDigest, PlanSignature
+│   ├── plan.py                    # SignedRemediationPlan, PlanDigest, PlanSignature
+│   ├── audit.py                   # AuditEvent, AuditEventRecord
+│   └── remediation.py             # RemediationResponse models
 ├── reasoner/                      # Multi-tier cognitive incident triage cascade
 │   ├── __init__.py
-│   ├── engine.py                  # Cascade orchestrator (Gemini -> OpenRouter -> Heuristics)
-│   ├── gemini.py                  # Primary Gemini 3.8 Flash High client + clean_gemini_schema
-│   ├── openrouter.py              # Secondary Qwen 2.5 client + <think> pre-processing filter
-│   └── schema.py                  # OpenAPI 3.0 schema sanitizer & Protobuf allowlist adapter
+│   ├── cascade.py                 # Cascade orchestrator (Gemini -> OpenRouter -> Heuristics)
+│   ├── client.py                  # Primary Gemini 3.8 Flash High client with thinking budget
+│   ├── openrouter.py              # Secondary Qwen 2.5 client with <think> pre-processing filter
+│   ├── schema.py                  # OpenAPI 3.0 schema sanitizer & Protobuf allowlist adapter
+│   ├── ingestion.py               # Bounded file reading (800 lines / 46KB) & context compactor
+│   ├── memory.py                  # Process RSS memory tracker & 1750MB RAM watchdog
+│   ├── retry.py                   # Exponential backoff with full jitter
+│   ├── tracker.py                 # Per-request token and cost tracking circuit breakers
+│   ├── prompt_compiler.py         # Modular prompt compiler with XML tag isolation
+│   └── prompt_registry.py         # Prompt file loader enforcing Path.is_relative_to()
 ├── heuristics/                    # Deterministic offline SecOps safety floors & algorithms
 │   ├── __init__.py
-│   ├── engine.py                  # Haversine impossible travel & sliding-window token velocity
-│   ├── cidr.py                    # Canonical CIDR normalization, IPv4-mapped IPv6, blast-radius floors
-│   └── catalog.py                 # config/identity_catalog.json loader & break-glass verifier
+│   ├── engine.py                  # DeterministicHeuristicsEngine coordinator & state reset
+│   ├── blast_radius_rules.py      # Canonical CIDR normalization, IPv4-mapped IPv6, blast-radius floors
+│   ├── catalog.py                 # config/identity_catalog.json loader & break-glass verifier
+│   ├── impossible_travel_rules.py # Haversine impossible travel detection (>900 km/h)
+│   ├── privilege_escalation_rules.py # Sliding-window token velocity detection (>15 calls/min)
+│   └── credential_stuffing_rules.py  # Credential stuffing & ASN velocity detection
 ├── guardrails/                    # Zero-hallucination validation, overwriting & cryptographic sealing
 │   ├── __init__.py
-│   ├── quarantine.py              # ActionType allowlist check & fail-closed quarantine engine
+│   ├── engine.py                  # GuardrailEngine allowlist validation, overwriting & quarantine
+│   ├── signing.py                 # Canonical JSON serializer, SHA-256 digest & HMAC-SHA256 signer
 │   ├── rollback.py                # Deterministic pre-compiled execution & rollback overwriter
-│   └── signing.py                 # Canonical JSON serializer, SHA-256 digest & HMAC-SHA256 signer
+│   ├── iam_policy.py              # Deterministic IAM DenyAll boundary policies
+│   └── simulation.py              # Dry-run execution simulator
 ├── ledger/                        # Concurrency-safe persistence & audit trail
 │   ├── __init__.py
-│   ├── db.py                      # SQLite WAL connection manager, MVCC SELECTs & PRAGMA migrations
-│   ├── lock.py                    # Cross-platform filelock.FileLock write mutex wrapper
-│   └── jsonl.py                   # Rotated JSONL audit ledger writer (50MB/file, 30-day retention)
+│   ├── db.py                      # SQLite WAL connection manager, MVCC SELECTs, filelock & PRAGMA migrations
+│   ├── memory.py                  # In-memory thread-safe ledger for simulation & testing
+│   └── audit_logger.py            # Rotated JSONL audit ledger writer (50MB/file, 30-day retention)
 └── mcp/                           # Model Context Protocol & HTTP gateway interfaces
     ├── __init__.py
-    ├── server.py                  # stdio line-delimited JSON-RPC 2.0 loop & protocol negotiator
-    ├── routes.py                  # FastAPI /v1/sse, /v1/messages, /v1/health endpoints
-    └── auth.py                    # Timing-safe MCP_API_KEY validator & query parameter filter
+    ├── sse.py                     # FastAPI persistent /v1/sse, /v1/messages, /v1/health endpoints & 10MB body filter
+    ├── stdio.py                   # stdio line-delimited JSON-RPC 2.0 loop & protocol negotiator
+    ├── auth.py                    # Timing-safe MCP_API_KEY validator via hmac.compare_digest()
+    ├── filters.py                 # SensitiveQueryParamFilter sanitizing ?apiKey=*** in access logs
+    ├── catalog.py                 # Model Context Protocol tools, prompts & resources registry
+    └── protocol.py                # JSON-RPC 2.0 protocol schemas & error contracts
 ```
 
 ---
@@ -482,14 +501,14 @@ src/secops_identity_sentinel/
 
 | Functional Requirement (`docs/PRD.md`) | Technical Specification (`docs/TRD.md`) | Architectural Component | Module Implementation Path |
 |---|---|---|---|
-| `FS-1` Bounded Telemetry Ingestion | Section 1.2, 5.2 | Telemetry Ingestion & Compactor | `src/secops_identity_sentinel/models/telemetry.py` |
-| `FS-2` Three-Tier AI Resilience | Section 4.1, 4.2, 4.3 | Multi-Tier Reasoner Cascade | `src/secops_identity_sentinel/reasoner/engine.py` |
-| `FS-3` ActionType Allowlist & Scoring | Section 1.1, 1.3 | Guardrail Quarantine Gate | `src/secops_identity_sentinel/guardrails/quarantine.py` |
+| `FS-1` Bounded Telemetry Ingestion | Section 1.2, 5.2 | Telemetry Ingestion & Compactor | `src/secops_identity_sentinel/reasoner/ingestion.py` |
+| `FS-2` Three-Tier AI Resilience | Section 4.1, 4.2, 4.3 | Multi-Tier Reasoner Cascade | `src/secops_identity_sentinel/reasoner/cascade.py` |
+| `FS-3` ActionType Allowlist & Scoring | Section 1.1, 1.3 | Guardrail Quarantine Gate | `src/secops_identity_sentinel/guardrails/engine.py` |
 | `FS-4` Deterministic Execution Overwrite | Section 1.3, 2.3 | Execution Template Overwriter | `src/secops_identity_sentinel/guardrails/rollback.py` |
 | `FS-5` Safety Floors & Break-Glass | Section 2.1, 2.3, 2.4 | Heuristics & CIDR Engine | `src/secops_identity_sentinel/heuristics/engine.py` |
 | `FS-6` HMAC-SHA256 Signing & Anti-Replay | Section 3.1, 3.2 | Cryptographic Sealer | `src/secops_identity_sentinel/guardrails/signing.py` |
 | `FS-7` SQLite WAL Persistence | Section 6.1, 6.2, 6.3 | SQLite WAL Concurrency Layer | `src/secops_identity_sentinel/ledger/db.py` |
-| `FS-8` Multi-Transport MCP Gateway | Section 5.1, 5.2, 5.3 | Transport & Gateway Subsystem | `src/secops_identity_sentinel/mcp/server.py` |
+| `FS-8` Multi-Transport MCP Gateway | Section 5.1, 5.2, 5.3 | Transport & Gateway Subsystem | `src/secops_identity_sentinel/mcp/sse.py` & `src/secops_identity_sentinel/mcp/stdio.py` |
 
 ---
 *Signed and sealed by the Principal AI Systems Architect, Lead SRE, and Staff Security Engineer.*

@@ -112,7 +112,7 @@
   2. Operator invokes the CLI with `--dry-run` simulation flag:
      ```bash
      secops-identity-sentinel audit \
-       --telemetry-file test_data/batch_events.json \
+       --telemetry-file samples/telemetry_batch.json \
        --dry-run \
        --format table
      ```

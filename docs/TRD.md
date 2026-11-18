@@ -250,26 +250,36 @@ def canonicalize_and_validate_cidr(cidr_input: str) -> ipaddress.IPv4Network | i
 ```
 
 ### 2.4 Break-Glass Identity Protection Algorithm (`SEC-LH-002`)
-The guardrail engine verifies identities against break-glass rules using a dual-check pipeline:
+The guardrail engine verifies identities against break-glass rules using a dual-check pipeline with Unicode NFKC normalization:
 ```python
-def is_protected_break_glass(principal_id: str, tags: dict[str, str], catalog: dict) -> bool:
+import unicodedata
+
+def is_protected_break_glass(principal_id: str, tags: dict[str, str] | None, catalog: dict | None) -> bool:
+    norm_principal = unicodedata.normalize("NFKC", str(principal_id)).strip()
+
     # Check 1: Inbound telemetry tags (case-insensitive, whitespace-trimmed, exact equality)
-    for k, v in tags.items():
-        k_norm = k.strip().lower()
-        v_norm = v.strip().lower()
-        if k_norm == "role" and v_norm == "break-glass-admin":
-            return True
-        if k_norm == "tier" and v_norm == "control-plane-root":
-            return True
+    if tags:
+        for k, v in tags.items():
+            k_norm = unicodedata.normalize("NFKC", str(k)).strip().lower()
+            v_norm = unicodedata.normalize("NFKC", str(v)).strip().lower()
+            if k_norm == "role" and v_norm == "break-glass-admin":
+                return True
+            if k_norm == "tier" and v_norm == "control-plane-root":
+                return True
+            if k_norm == "is_break_glass" and v_norm in ("true", "1", "yes"):
+                return True
 
     # Check 2: Authoritative Catalog Lookup (Defeats telemetry tag-stripping)
-    principals_catalog = catalog.get("principals", {})
-    if principal_id in principals_catalog:
-        entry = principals_catalog[principal_id]
-        if entry.get("tier", "").strip().lower() in ("control-plane-root", "break-glass"):
-            return True
-        if entry.get("role", "").strip().lower() == "break-glass-admin":
-            return True
+    if catalog:
+        principals_catalog = catalog.get("principals", {})
+        if norm_principal in principals_catalog:
+            entry = principals_catalog[norm_principal]
+            if entry.get("tier", "").strip().lower() in ("control-plane-root", "break-glass"):
+                return True
+            if entry.get("role", "").strip().lower() == "break-glass-admin":
+                return True
+            if entry.get("is_break_glass", False):
+                return True
 
     return False
 ```
@@ -329,9 +339,9 @@ def sign_remediation_plan(plan: SignedRemediationPlan, secret: str) -> tuple[str
     return digest, signature
 
 def verify_plan_signature(plan: SignedRemediationPlan, secret: str) -> bool:
-    # Anti-Replay: Check TTL
+    # Anti-Replay: Check TTL (boundary now >= plan.expires_at fails closed)
     now = datetime.now(timezone.utc)
-    if now > plan.expires_at:
+    if now >= plan.expires_at:
         return False  # Expired
         
     expected_digest, expected_sig = sign_remediation_plan(plan, secret)

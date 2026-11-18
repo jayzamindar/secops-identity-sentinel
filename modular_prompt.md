@@ -44,18 +44,18 @@ CRITICAL CONSTITUTIONAL RULES:
 
 | Module ID | Module Title | Runtime File Path | Primary Threat Domain |
 | :--- | :--- | :--- | :--- |
-| `auth` | Authentication & Access Anomaly Evaluation Module | `modules/auth.md` | Brute-force, credential stuffing, and OAuth token refresh velocity detection. |
-| `guardrails` | Guardrails, Safety Scoring & Mitigation Module | `modules/guardrails.md` | Break-glass protection, 1-5 safety risk scoring, and mandatory deterministic rollback rules. |
-| `identity` | Identity Anomaly Evaluation Module | `modules/identity.md` | Evaluation of cloud identity telemetry, dormant principal activation, IAM tampering, and credential abuse. |
-| `mcp_runbooks` | MCP Protocol Runbooks & Tool Dispatch Module | `modules/mcp_runbooks.md` | Tool invocation policies, 10MB payload ceiling, HMAC signing verification, and protocol safeguards. |
-| `network` | Network & Geolocation Anomaly Evaluation Module | `modules/network.md` | Impossible travel (>900 km/h), high-risk ASN ingress, and CIDR containment. |
-| `workload` | Compute & Container Workload Anomaly Evaluation Module | `modules/workload.md` | IMDS scraping, container privilege escalation, and workload isolation. |
+| `auth` | Authentication & Access Anomaly Evaluation Module | `prompts/modules/auth.md` | Brute-force, credential stuffing, and OAuth token refresh velocity detection. |
+| `guardrails` | Guardrails, Safety Scoring & Mitigation Module | `prompts/modules/guardrails.md` | Break-glass protection, 1-5 safety risk scoring, and mandatory deterministic rollback rules. |
+| `identity` | Identity Anomaly Evaluation Module | `prompts/modules/identity.md` | Evaluation of cloud identity telemetry, dormant principal activation, IAM tampering, and credential abuse. |
+| `mcp_runbooks` | MCP Protocol Runbooks & Tool Dispatch Module | `prompts/modules/mcp_runbooks.md` | Tool invocation policies, 10MB payload ceiling, HMAC signing verification, and protocol safeguards. |
+| `network` | Network & Geolocation Anomaly Evaluation Module | `prompts/modules/network.md` | Impossible travel (>900 km/h), high-risk ASN ingress, and CIDR containment. |
+| `workload` | Compute & Container Workload Anomaly Evaluation Module | `prompts/modules/workload.md` | IMDS scraping, container privilege escalation, and workload isolation. |
 
 ---
 
 ## 4. Runtime Prompt Module Specifications
 
-### Module: `auth` (`modules/auth.md`)
+### Module: `auth` (`prompts/modules/auth.md`)
 ```markdown
 # Authentication & Access Anomaly Evaluation Module
 
@@ -72,7 +72,7 @@ Evaluate identity provider authentication logs, token issuance sequences, and co
 - `REVOKE_SESSION`: Target invalid or compromised refresh session.
 ```
 
-### Module: `guardrails` (`modules/guardrails.md`)
+### Module: `guardrails` (`prompts/modules/guardrails.md`)
 ```markdown
 # Guardrails, Safety Scoring & Mitigation Module
 
@@ -87,7 +87,7 @@ Establish mandatory safety boundaries, 1-5 safety risk scoring rules, and zero-h
 3. Mandatory Mitigation & Rollback: High-risk actions (>= 3) must include deterministic rollback specifications.
 ```
 
-### Module: `identity` (`modules/identity.md`)
+### Module: `identity` (`prompts/modules/identity.md`)
 ```markdown
 # Identity Anomaly Evaluation Module
 
@@ -106,7 +106,7 @@ Evaluate cloud identity telemetry for unauthorized credential exposure, anomalou
 - `SUSPEND_SERVICE_ACCOUNT`: Target compromised service account email.
 ```
 
-### Module: `mcp_runbooks` (`modules/mcp_runbooks.md`)
+### Module: `mcp_runbooks` (`prompts/modules/mcp_runbooks.md`)
 ```markdown
 # MCP Protocol Runbooks & Tool Dispatch Module
 
@@ -119,7 +119,7 @@ Guidance for dispatching automated containment tools via Model Context Protocol 
 3. Cryptographic Signature: All issued remediation plans require HMAC-SHA256 signature verification.
 ```
 
-### Module: `network` (`modules/network.md`)
+### Module: `network` (`prompts/modules/network.md`)
 ```markdown
 # Network & Geolocation Anomaly Evaluation Module
 
@@ -136,7 +136,7 @@ Evaluate network flow telemetry, source CIDR blocks, autonomous system numbers (
 - `REVOKE_SESSION`: Target session initiated from impossible travel anomaly.
 ```
 
-### Module: `workload` (`modules/workload.md`)
+### Module: `workload` (`prompts/modules/workload.md`)
 ```markdown
 # Compute & Container Workload Anomaly Evaluation Module
 
