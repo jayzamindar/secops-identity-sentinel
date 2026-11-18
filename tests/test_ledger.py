@@ -12,6 +12,7 @@ from collections.abc import Generator
 from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -147,10 +148,32 @@ def test_sqlite_checkpoints(temp_db: LedgerDatabase) -> None:
     assert temp_db.check_wal_size_and_truncate() is False
 
     # Simulate oversized WAL
+    import os
     from unittest.mock import patch
 
-    with patch.object(Path, "stat") as mock_stat:
-        mock_stat.return_value.st_size = 55 * 1024 * 1024
+    real_stat = wal_file.stat()
+    fake_stat = os.stat_result(
+        (
+            real_stat.st_mode,
+            real_stat.st_ino,
+            real_stat.st_dev,
+            real_stat.st_nlink,
+            real_stat.st_uid,
+            real_stat.st_gid,
+            55 * 1024 * 1024,
+            real_stat.st_atime,
+            real_stat.st_mtime,
+            real_stat.st_ctime,
+        )
+    )
+    real_stat_fn = Path.stat
+
+    def _mock_wal_stat(self: Path, *args: Any, **kwargs: Any) -> os.stat_result:
+        if str(self) == str(wal_file):
+            return fake_stat
+        return real_stat_fn(self, *args, **kwargs)
+
+    with patch.object(Path, "stat", _mock_wal_stat):
         assert temp_db.check_wal_size_and_truncate() is True
 
 
