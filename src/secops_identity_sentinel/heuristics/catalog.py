@@ -10,6 +10,7 @@ GEMINI.md Section 3.5, Section 3.8, and TRD.md Section 2.4.
 from __future__ import annotations
 
 import json
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -165,13 +166,13 @@ def is_protected_break_glass(
     Returns:
         bool: True if identity is protected under break-glass rules.
     """
-    norm_principal = principal_id.strip()
+    norm_principal = unicodedata.normalize("NFKC", str(principal_id)).strip()
 
     # Check 1: Inbound telemetry tags
     if tags:
         for k, v in tags.items():
-            k_norm = str(k).strip().lower()
-            v_norm = str(v).strip().lower()
+            k_norm = unicodedata.normalize("NFKC", str(k)).strip().lower()
+            v_norm = unicodedata.normalize("NFKC", str(v)).strip().lower()
             if k_norm == "role" and v_norm == "break-glass-admin":
                 return True
             if k_norm == "tier" and v_norm == "control-plane-root":

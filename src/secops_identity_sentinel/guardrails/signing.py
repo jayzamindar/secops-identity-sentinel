@@ -206,7 +206,7 @@ def verify_plan_signature(
         plan_exp = plan_exp.replace(tzinfo=UTC)
 
     # Anti-Replay: enforce TTL window (expired plans fail closed)
-    if current_time > plan_exp:
+    if current_time >= plan_exp:
         logger.warning(
             "Plan verification failed: Plan '%s' expired at %s (current: %s)",
             plan.plan_id,
@@ -279,7 +279,7 @@ class PlanIdempotencyRegistry:
             if plan_exp.tzinfo is None:
                 plan_exp = plan_exp.replace(tzinfo=UTC)
 
-            if current_time > plan_exp:
+            if current_time >= plan_exp:
                 # Expired: purge from registry
                 self._by_idempotency_key.pop(idempotency_key, None)
                 self._by_plan_id.pop(plan.plan_id, None)
@@ -308,7 +308,7 @@ class PlanIdempotencyRegistry:
             if plan_exp.tzinfo is None:
                 plan_exp = plan_exp.replace(tzinfo=UTC)
 
-            if current_time > plan_exp:
+            if current_time >= plan_exp:
                 self._by_plan_id.pop(plan_id, None)
                 self._by_idempotency_key.pop(plan.idempotency_key, None)
                 return None

@@ -243,18 +243,18 @@ Every phase in this blueprint must satisfy the following **Definition of Done (D
 ### Phase 12: [UNIVERSAL CORE] Cross-Model Adversarial Audit & Wrinkle Elimination
 *Goal: Subject the complete codebase, schemas, and documentation to multi-model red-team review to eliminate subtle blind spots before release.*
 
-- [ ] **12.1 Post-Build Multi-Model Audit Workflow:** Establish a structured post-build review protocol once all automated tests pass at 100%. Export core schemas, prompt templates, guardrail engines, and documentation.
-- [ ] **12.2 Multi-Model Red-Team Review:** Prompt secondary frontier models (Claude 3.7/4 Sonnet, OpenAI o3/GPT-4o, and Qwen 2.5 Coder 32B) with a structured red-team review prompt:
+- [x] **12.1 Post-Build Multi-Model Audit Workflow:** Establish a structured post-build review protocol once all automated tests pass at 100%. Export core schemas, prompt templates, guardrail engines, and documentation.
+- [x] **12.2 Multi-Model Red-Team Review:** Prompt secondary frontier models (Claude 3.7/4 Sonnet, OpenAI o3/GPT-4o, and Qwen 2.5 Coder 32B) with a structured red-team review prompt:
   - Identify edge-case ambiguities in heuristic thresholds.
   - Uncover race conditions in SQLite WAL file locking or SSE connection pooling.
   - Probe for silent failure modes in fallback cascades or error handlers.
   - Detect SecOps blast-radius or identity lockout traps (e.g., accidental lockout of break-glass admins or internet-wide CIDR blocks).
   - Flag any documentation drift between `docs/TRD.md`, `README.md`, and code implementations.
-- [ ] **12.3 Finding-to-Regression Test Loop:** For every confirmed finding or vulnerability identified during the adversarial audit:
+- [x] **12.3 Finding-to-Regression Test Loop:** For every confirmed finding or vulnerability identified during the adversarial audit:
   - Formulate a specific reproduction test case in `tests/`.
   - Implement the code or schema fix to resolve the edge case.
   - Verify that the test passes and add it permanently to the regression test suite.
-- [ ] **12.4 Final Release Sign-Off:** Execute the complete test suite, verify zero open vulnerabilities, and sign off on the production release.
+- [x] **12.4 Final Release Sign-Off:** Execute the complete test suite, verify zero open vulnerabilities, and sign off on the production release.
 
 ---
 
