@@ -145,7 +145,14 @@ def test_read_bounded_file_streaming_bytes_exceeded(
             real_stat.st_ctime,
         )
     )
-    monkeypatch.setattr(Path, "stat", lambda self: fake_stat)
+    real_stat_fn = Path.stat
+
+    def _mock_stat(self: Path, *args: Any, **kwargs: Any) -> os.stat_result:
+        if str(self) == str(test_file):
+            return fake_stat
+        return real_stat_fn(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", _mock_stat)
 
     with pytest.raises(IngestionLimitExceededError, match="cumulative byte count"):
         read_bounded_file(test_file, max_bytes=15)
