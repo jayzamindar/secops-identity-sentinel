@@ -122,6 +122,53 @@ Thumbs.db
 *.swo
 """
 
+PYPROJECT_TEMPLATE: Final[str] = """[build-system]
+requires = ["setuptools>=68.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "{{PROJECT_ID}}"
+version = "0.1.0"
+description = "{{PROJECT_TITLE}}"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.7.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.25.0",
+    "pytest-cov>=6.0.0",
+    "pytest-timeout>=2.3.0",
+    "ruff>=0.9.0",
+    "mypy>=1.14.0",
+]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+timeout = 15
+timeout_method = "thread"
+addopts = "-v --strict-markers --tb=short --cov=src/{{PACKAGE_NAME}} --cov-fail-under=90"
+"""
+
+PROJECT_MAP_TEMPLATE: Final[str] = """# Repository Architecture Map: {{PROJECT_TITLE}}
+
+| Directory / File | Type | Primary Role & Responsibility |
+|---|---|---|
+| `GEMINI.md` | Governance | Universal Master Handbook: non-negotiable invariants, safety rules, and standards |
+| `Enterprise_Blueprint.md` | Roadmap | Master engineering roadmap with 12 phased implementation milestones |
+| `PROJECT_MAP.md` | Map | High-density architectural index of all files and directories |
+| `README.md` | Hub | Centralized Master Navigation Hub & Production Release Overview |
+| `src/{{PACKAGE_NAME}}/` | Core Package | Main production library source code |
+| `tests/` | Test Suite | Pytest verification suite with >=90% coverage gate and 15s timeout protection |
+| `docs/` | Documentation | Architecture, requirements, deployment, and monitoring specifications |
+"""
+
 
 @dataclass(frozen=True)
 class ProjectConfig:
@@ -413,6 +460,8 @@ def clone_governance_files(source_root: Path, target_dir: Path, dry_run: bool) -
         core_files.append(".gitignore")
     if (source_root / "modular_prompt.md").exists():
         core_files.append("modular_prompt.md")
+    if (source_root / "PROJECT_MAP.md").exists():
+        core_files.append("PROJECT_MAP.md")
 
     for f_name in core_files:
         src = source_root / f_name
@@ -584,6 +633,22 @@ def reconfigure_modular_prompt(file_path: Path, config: ProjectConfig, source_pa
     return replacements, f"{action_label} {file_path.name} ({replacements} replacements)", text
 
 
+def reconfigure_project_map(file_path: Path, config: ProjectConfig, source_path: Path) -> tuple[int, str, str]:
+    """Reconfigure PROJECT_MAP.md with new project details if present."""
+    read_path = source_path if source_path.exists() else file_path
+    if not read_path.exists():
+        return 0, f"File not found: {read_path}", ""
+
+    text = read_path.read_text(encoding="utf-8")
+    text, replacements = replace_placeholder_tokens(text, config)
+
+    if not config.dry_run:
+        file_path.write_text(text, encoding="utf-8")
+
+    action_label = "[DRY-RUN] Previewed" if config.dry_run else "Reconfigured"
+    return replacements, f"{action_label} {file_path.name} ({replacements} replacements)", text
+
+
 def purge_old_audit_reports(target_dir: Path, dry_run: bool) -> list[str]:
     """Purge project-specific audit deliverables in the new target so Phase 0.1 starts clean."""
     reports_to_purge = [
@@ -616,6 +681,8 @@ def scaffold_directory_skeleton(config: ProjectConfig) -> list[str]:
         (tests_dir, tests_init, f'"""Test suite for {config.project_title}."""\n'),
         (docs_dir, None, None),
         (prompts_dir, None, None),
+        (config.target_dir, config.target_dir / "pyproject.toml", replace_placeholder_tokens(PYPROJECT_TEMPLATE, config)[0]),
+        (config.target_dir, config.target_dir / "PROJECT_MAP.md", replace_placeholder_tokens(PROJECT_MAP_TEMPLATE, config)[0]),
     ]
 
     for d_path, f_path, content in scaffold_plan:
@@ -771,6 +838,7 @@ def main() -> None:
     readme_file = config.target_dir / "README.md"
     debug_log_file = config.target_dir / "Blueprint_Debug_Log.md"
     modular_prompt_file = config.target_dir / "modular_prompt.md"
+    project_map_file = config.target_dir / "PROJECT_MAP.md"
 
     targets = [
         (reconfigure_gemini_md, gemini_file, repo_root / "GEMINI.md"),
@@ -781,6 +849,8 @@ def main() -> None:
 
     if (repo_root / "modular_prompt.md").exists():
         targets.append((reconfigure_modular_prompt, modular_prompt_file, repo_root / "modular_prompt.md"))
+    if (repo_root / "PROJECT_MAP.md").exists():
+        targets.append((reconfigure_project_map, project_map_file, repo_root / "PROJECT_MAP.md"))
 
     reconfigured_texts: dict[str, str] = {}
     for func, f_path, src_path in targets:

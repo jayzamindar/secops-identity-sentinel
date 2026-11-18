@@ -50,6 +50,7 @@ You are acting as a **Principal AI Systems Architect, Lead SRE, and Staff Securi
   - **No Self-Mocking:** Mocks/stubs are permitted only for external network boundaries (e.g., Gemini/OpenRouter HTTP calls); mocking the internal function or guardrail under test is strictly forbidden.
   - **Verbatim Proof Required:** Never fabricate or summarize test results. Every task completion report must include the exact verbatim terminal output line from `pytest` showing passed/failed test counts and code coverage percentage.
 - **Cross-Platform UTF-8 File I/O Invariant:** All file reading, writing, logging, schema loading, and subprocess text decoding must explicitly specify `encoding="utf-8"` (e.g., `Path.read_text(encoding="utf-8")`, `Path.write_text(..., encoding="utf-8")`, `open(..., encoding="utf-8")`). Omitting explicit encoding or relying on OS platform defaults (such as Windows `cp1252`) is strictly forbidden to guarantee complete cross-platform portability without `UnicodeDecodeError` or `UnicodeEncodeError` across Windows, macOS, Linux, and Docker environments.
+- **Post-Build Cross-Document Alignment Gate:** Before tagging a release or closing the final phase (e.g., Phase 12), the agent must audit and synchronize all Markdown files (`README.md` with clear document role descriptions and verified relative links, `docs/ARCHITECTURE.md`, `docs/TRD.md`, `docs/PRD.md`, `docs/URD.md`, `modular_prompt.md`, `PROJECT_MAP.md`, and `Blueprint_*.md`) against the shipped codebase, schemas, CLI commands, and verified test/coverage metrics with zero dead links and zero `"TBD"` / `"Planned"` placeholders.
 
 ---
 
@@ -63,6 +64,9 @@ You are acting as a **Principal AI Systems Architect, Lead SRE, and Staff Securi
 - **Persistence & Mutex Locking:** SQLite in WAL mode (`PRAGMA journal_mode=WAL;`) with cross-platform write-only file locking (`filelock.FileLock`) preserving MVCC for concurrent non-blocking reads.
 - **Observability:** OpenTelemetry API/SDK (`opentelemetry-api`, `opentelemetry-sdk`) with structured JSON logging and access-log secret filters.
 - **Code Quality:** `ruff` (linting and formatting), `mypy` (strict static typing), `pytest` + `pytest-asyncio` + `pytest-cov` ($\ge 90\%$ coverage gate).
+- **Mandatory `pytest-timeout` & Async Deadlock Prevention:** Enforce `pytest-timeout` (`timeout = 15`, `timeout_method = "thread"`) in `pyproject.toml` from Phase 1 onward so hanging async generators, unreleased SQLite locks, or lingering background daemon threads fail fast in 15 seconds instead of hanging CI/CD pipelines indefinitely.
+- **Deterministic Supply-Chain Lockfile Generation:** When CI/CD enforces supply-chain hash audits or dependency vulnerability scanning, a pinned, reproducible lockfile (`uv.lock` or `requirements.lock`) must be generated and committed in Phase 1.
+- **Windows Sandbox Loopback Initialization (`WinError 10013`):** On Windows sandboxed runners and containerized environments, host execution policies must allow local `127.0.0.1` loopback socket binding to permit Python `asyncio` Proactor/Selector event-loop initialization and internal socket pairs without tripping OS socket access control errors (`WinError 10013`).
 
 ---
 
@@ -88,7 +92,7 @@ To eliminate AI hallucination vulnerabilities in SecOps and identity containment
 
 ### 3. [UNIVERSAL CORE] Full-Payload Cryptographic HMAC-SHA256 Signing, Anti-Replay & Canonical Serialization
 All remediation plans and webhook payloads must be cryptographically sealed before persistence or transmission to guarantee absolute tamper-evidence and replay immunity:
-- **Anti-Replay Invariant:** Every signed remediation plan must contain an ISO-8601 UTC timestamp `issued_at`, an `expires_at` timestamp enforcing a strict TTL of $\le 300\text{ seconds}$ (5 minutes), and a unique `plan_id` (monotonic nonce). The verification engine must reject expired plans (`current_time > expires_at`) or replayed plan IDs with HTTP 400 / fail-closed.
+- **Anti-Replay Invariant:** Every signed remediation plan must contain an ISO-8601 UTC timestamp `issued_at`, an `expires_at` timestamp enforcing a strict TTL of $\le 300\text{ seconds}$ (5 minutes), and a unique `plan_id` (monotonic nonce). The verification engine must reject expired plans with strict boundary check (`current_time >= expires_at`, never strict `>`, eliminating the 1-second boundary replay window) or replayed plan IDs with HTTP 400 / fail-closed.
 - **Canonical Serialization Invariant:** The system must compute a SHA-256 `plan_digest` and an HMAC-SHA256 `plan_signature` over the strict canonical JSON representation:
   `json.dumps(plan.model_dump(mode="json", exclude={"plan_digest", "plan_signature"}), sort_keys=True, separators=(',', ':'), ensure_ascii=False)`
 - **Serialization Prohibition:** Generic, non-sorted, or non-deterministic serialization methods (such as default `json.dumps()` without fixed separators, or unconstrained Pydantic serialization) are strictly forbidden to prevent cryptographic signature mismatch.
@@ -116,8 +120,10 @@ The system must guarantee 100% evaluation uptime through a tiered fallback casca
 ### 6. [UNIVERSAL CORE] SQLite WAL Lock Isolation, Async Thread Offloading & Checkpoint Lifecycle
 All SQLite database and JSONL ledger operations must enforce strict concurrency isolation:
 - **MVCC Isolation Layer:** Cross-platform `filelock.FileLock` with a default 10.0-second timeout (configurable via `FILELOCK_TIMEOUT_SEC` in `config.py`) must wrap **WRITE mutations only** (`INSERT`, `UPDATE`, `DELETE`, `PRAGMA wal_checkpoint`). All **READ transactions** (`SELECT`, ledger queries) must completely bypass `filelock` and rely exclusively on SQLite's native Multi-Version Concurrency Control (MVCC) in WAL mode (`PRAGMA journal_mode=WAL;`), eliminating writer starvation and WAL bloat. Windows-only locks (`msvcrt`) are strictly forbidden.
+- **Per-Operation `FileLock` Instantiation:** Dynamically instantiate `FileLock(self.lock_path, timeout=self.filelock_timeout_sec)` inside each write operation rather than sharing a single lock instance across `asyncio.to_thread()` worker threads. This prevents Windows file-descriptor ownership conflicts and nested lock deadlocks across thread boundaries.
 - **Async Event-Loop Offloading:** Synchronous `filelock.FileLock` write mutations and blocking SQLite disk I/O executed inside asynchronous FastAPI routes must be offloaded to worker threads via `asyncio.to_thread()` (or `anyio.to_thread.run_sync()`). This guarantees that concurrent `/sse` client event streams and HTTP routing loops never experience event-loop starvation.
 - **Busy Timeout & WAL Checkpoint Lifecycle:** All SQLite connections must set `PRAGMA busy_timeout = 5000;` (5.0-second wait on transient locks before raising OperationalError). To definitively prevent `*.db-wal` from expanding past the 50MB runtime ceiling, background workers must execute periodic passive checkpoints (`PRAGMA wal_checkpoint(PASSIVE);`), and enforce truncate checkpoints (`PRAGMA wal_checkpoint(TRUNCATE);`) upon graceful application shutdown or whenever WAL file size exceeds 50MB.
+- **Explicit Connection & Telemetry Teardown Contract:** Every `sqlite3.Connection` must set `PRAGMA busy_timeout = 5000;` and explicitly close inside `try...finally` or context manager exit handlers to release file locks cleanly across Windows and Linux runtimes. Similarly, OpenTelemetry `TracerProvider` and `MeterProvider` instances must call `.shutdown()` in application shutdown handlers and test fixture teardowns to prevent thread pool leaks.
 - **SQLite Schema Versioning & Idempotent Migrations:** On application startup, the database initialization layer must query and track `PRAGMA user_version`. Schema mutations must be executed strictly via idempotent migration scripts incrementing `user_version` within a dedicated write transaction. Unversioned, ad-hoc table alterations or raw `CREATE TABLE IF NOT EXISTS` statements that bypass migration version checks are strictly forbidden, guaranteeing existing ledgers are never corrupted across deployments.
 
 ### 7. [UNIVERSAL CORE] Prompt Injection Defense & Path Traversal Isolation
@@ -126,7 +132,7 @@ All SQLite database and JSONL ledger operations must enforce strict concurrency 
 
 ### 8. [DOMAIN REFERENCE: SECOPS & IDENTITY] Reference Heuristic Guardrails & Safety Floors
 In multi-round evaluation or incident triage loops, containment votes and state maps must be reset upon round increment. Heuristic engines must enforce hard domain safeguards:
-- **Break-Glass Identity Protection:** Never suspend or quarantine identities tagged `role=break-glass-admin` or `tier=control-plane-root`. Tag verification must enforce strict case-insensitivity, whitespace trimming (`k.strip().lower() == "role"` and `v.strip().lower() == "break-glass-admin"`), and exact string equality (strictly forbidding wildcard or substring matches). In addition, the guardrail must verify identities against authoritative `config/identity_catalog.json`: if incoming incident telemetry lacks tags or has had tags stripped, the engine must cross-reference the canonical principal email/ARN against the catalog to resolve role tier before evaluating containment. Escalate immediately to `quarantined=True` (`quarantine_reason="PROTECTED_BREAK_GLASS_IDENTITY"`).
+- **Break-Glass Identity Protection:** Never suspend or quarantine identities tagged `role=break-glass-admin` or `tier=control-plane-root`. Tag verification must enforce strict Unicode NFKC normalization and casefolding via `unicodedata.normalize("NFKC", str(val)).strip().casefold()` on all inbound tag keys, values, and principal identifiers prior to evaluation (neutralizing fullwidth homoglyph `Ｒｏｌｅ` and non-breaking space `\u00a0` bypasses). Matching requires exact normalized string equality (`k_norm == "role"` and `v_norm == "break-glass-admin"`), strictly forbidding wildcard or substring matches. In addition, the guardrail must verify identities against authoritative `config/identity_catalog.json`: if incoming incident telemetry lacks tags or has had tags stripped, the engine must cross-reference the canonical principal email/ARN against the catalog to resolve role tier before evaluating containment. Escalate immediately to `quarantined=True` (`quarantine_reason="PROTECTED_BREAK_GLASS_IDENTITY"`).
 - **CIDR Blast-Radius Floor & IMDS Protection:** Canonicalize CIDR blocks via `ipaddress.ip_network(cidr, strict=False)` to strip host bits (`net.network_address/net.prefixlen`), unwrap IPv4-mapped IPv6 subnets (`net.ipv4_mapped`) to IPv4, and reject `BLOCK_CIDR` actions broader than `/16` (IPv4) or `/48` (IPv6). Forbid all-zero default routes (`0.0.0.0/0`, `::/0`). Never block private control-plane subnets (RFC1918 `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), Carrier-Grade NAT (RFC6598 `100.64.0.0/10`), loopback (`127.0.0.0/8`, `::1/128`), multicast (`224.0.0.0/4`, `ff00::/8`), or link-local cloud metadata endpoints (IMDS `169.254.0.0/16`, `fe80::/10`) without human break-glass approval.
 - **Impossible-Travel & Token Velocity Threshold:** Trigger deterministic high-severity containment when geo-velocity exceeds 900 km/h across distinct ASN/country pairs or API key privilege-escalation calls exceed 15/min.
 
@@ -155,6 +161,7 @@ To prevent runaway autonomous agent loops from exhausting API quotas or racking 
 ### 13. [UNIVERSAL CORE] Context Compaction & Telemetry Ingestion Hygiene (Zero Context Dumping)
 Dumping unindexed, raw multi-megabyte log files, large CSVs, or whole database dumps directly into reasoning prompts is strictly forbidden:
 - **Bounded Ingestion:** All tool-assisted file reads and metrics telemetry must enforce strict upper limits (max 800 lines or 46KB per tool invocation).
+- **Targeted Line-Range Reads & `PROJECT_MAP.md` Index:** Maintain a lightweight `PROJECT_MAP.md` (~50–70 lines mapping repo file paths to primary classes, functions, and responsibilities) at the repository root. Fresh AI sessions must read `PROJECT_MAP.md` first to understand the codebase in a single ~500-token lookup rather than recursively scanning directories. File reads in source and test trees must use targeted line ranges (`StartLine`/`EndLine`) centered on the active task.
 - **Compacted Context Graphs:** Telemetry batches must be aggregated, deduplicated, and compacted into structured JSON summaries consuming $< 4,000$ tokens per 50-resource batch prior to LLM reasoning ingestion. Raw, unsummarized payloads that dilute reasoning density or approach context limits must be rejected fail-closed.
 
 ---
@@ -216,7 +223,7 @@ When resolving requirements, architectural decisions, or ambiguity, adhere to th
 
 1. `GEMINI.md` (Universal Master Handbook: Invariants, security rules, and coding standards)
 2. `Enterprise_Blueprint.md` (Master engineering backlog and phase-by-phase roadmap)
-3. Blueprint Audit & Debug Logs (`README.md`, `Blueprint_Debug_Log.md`)
+3. Master Repository Navigation & Blueprint Audit Logs (`README.md`, `PROJECT_MAP.md`, `Blueprint_Debug_Log.md`)
 4. `modular_prompt.md` (Centralized modular prompt registry and PromptOps catalog)
 5. `docs/TRD.md` (Technical Requirements: exact schemas, state channels, cryptographic formulas, MCP contracts)
 6. `docs/PRD.md` (Product Requirements: functional capabilities, metrics, NFRs)
@@ -237,4 +244,23 @@ When resolving requirements, architectural decisions, or ambiguity, adhere to th
   3. `pytest -v --cov=src/secops_identity_sentinel --cov-fail-under=90` passes at 100% (applicable once test suite is active; during Phase 0 documentation only Markdown link integrity and file verification apply).
   4. **CI/CD Gate:** For Phases 0–6 (prior to Phase 7.2), passing local `ruff`, `mypy`, and `pytest` checks satisfies the CI gate. Once Phase 7.2 is complete, remote GitHub Actions CI/CD workflows must also cover the module and pass cleanly before advancing to the next task.
 - **Anti-Test-Cheating & Verifiable Proof Gate:** Before marking any task complete (`[x]`), the agent must provide verbatim terminal proof of passing tests and coverage ($\ge 90\%$). Tampering with test files, assertions, coverage thresholds, or adding `@pytest.mark.skip` / `xfail` to force a passing status is strictly forbidden and constitutes an immediate integrity violation. Mocks are restricted solely to external network boundaries; internal logic and guardrails must never be self-mocked.
+- **Anti-Context-Rot Session Rotation Protocol:** Limit each AI session to **1–2 cohesive phases (or 3–5 tightly coupled tasks)** per session. At the end of each phase batch, the agent must mark tasks `[x]` in `Enterprise_Blueprint.md`, update `PROJECT_MAP.md`, commit/push to Git, emit a compact **5-line Session Handover Block**:
+  ```markdown
+  ### SESSION HANDOVER BLOCK
+  1. Completed Phase: Phase X.Y (<title>)
+  2. Git Commit: <commit-sha> on <branch>
+  3. Verification Summary: <N> passed, <pct>% coverage (ruff, mypy, pytest clean)
+  4. Next Target Phase: Phase Z.W (<title>)
+  5. Exact Files to Read Next: <file1>, <file2>, <file3>
+  ```
+  After emitting the handover block, the agent must **explicitly halt and instruct the human engineer to start a fresh AI session** before continuing. This prevents context-window saturation, reasoning degradation, foot-dragging, and hallucination.
+- **Resumable Recovery Protocol (`git status --short`):** When resuming an interrupted turn or launching a fresh session, always execute `git status --short` first and inspect only modified or untracked files on disk before acting. Never blindly re-implement, rewrite, or overwrite completed modules.
+- **Single Quiet Verification Chain:** For local and CI validation sweeps, standardize on the quiet verification chain to maximize output density and prevent terminal truncation:
+  ```bash
+  ruff check src/ tests/ && ruff format --check src/ tests/ && mypy src/ && pytest -q --tb=short --cov=src/<package_name> --cov-report=term:skip-covered --cov-fail-under=90
+  ```
+- **Live Green CI/CD Gate & Supply-Chain Rules:** Once Phase 7.2 is implemented, marking CI tasks complete requires inspecting live GitHub Actions runs (`gh run list` or `gh run view --log-failed`) and confirming a passing `success` run. The CI workflow must enforce:
+  1. *PEP 639-Aware License Auditing:* Check package metadata (`License-Expression`, `License`, and classifiers) allowing permissive licenses (`MIT`, `Apache-2.0`, `BSD`, `ISC`, `PSF-2.0`, `MPL-2.0`, `0BSD`) while blocking copyleft licenses (`GPL`, `AGPL`, `LGPL`).
+  2. *Scoped Secret-Scan Exclusions:* Secret scanners must exclude CI workflow definitions (`.github/workflows/ci.yml`) and legitimate mock test fixtures containing `# pragma: allowlist secret` to eliminate false positives.
+  3. *Stable CPython CI Matrix:* Run primary production tests against stable CPython (e.g. `"3.13"`) as blocking gates; experimental or bleeding-edge runtimes (e.g. `"3.14"`) must set `continue-on-error: true` until upstream wheel ecosystems stabilize.
 - **3-Strike Anti-Looping Circuit Breaker:** If a `ruff`, `mypy`, `pytest`, or build command fails **3 consecutive times** on the same module or error, the AI agent MUST immediately halt execution rather than looping indefinitely. It must log the exact error trace, root cause analysis, and attempted fixes in `Blueprint_Debug_Log.md` (under Section 2) and escalate to the human engineer for guidance.

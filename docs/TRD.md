@@ -527,7 +527,7 @@ PRAGMA user_version = 1;
 ```
 
 ### 6.3 Concurrency Architecture & Async Offloading
-- **Write Transactions:** Must acquire cross-platform `filelock.FileLock("data/secops_ledger.db.lock", timeout=10.0)`.
+- **Write Transactions:** Must acquire cross-platform `filelock.FileLock("data/secops_ledger.db.lock", timeout=10.0)` dynamically instantiated per write operation rather than sharing a single lock instance across `asyncio.to_thread()` threads (preventing Windows file-descriptor ownership conflicts and nested lock deadlocks). Every SQLite connection must close cleanly in `try...finally`.
 - **Async Event-Loop Preservation:** In FastAPI routes, synchronous filelock acquisition and SQLite writes must be dispatched to worker threads via:
   ```python
   await asyncio.to_thread(_sync_ledger_write, event)
