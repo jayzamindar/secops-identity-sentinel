@@ -62,19 +62,21 @@ def get_process_memory_mb() -> float:
                     ("PeakPagefileUsage", ctypes.c_size_t),
                 ]
 
-            k32 = ctypes.windll.kernel32
-            k32.K32GetProcessMemoryInfo.argtypes = [
-                ctypes.wintypes.HANDLE,
-                ctypes.POINTER(PROCESS_MEMORY_COUNTERS),
-                ctypes.wintypes.DWORD,
-            ]
-            k32.K32GetProcessMemoryInfo.restype = ctypes.wintypes.BOOL
+            windll = getattr(ctypes, "windll", None)
+            if windll is not None:
+                k32 = windll.kernel32
+                k32.K32GetProcessMemoryInfo.argtypes = [
+                    ctypes.wintypes.HANDLE,
+                    ctypes.POINTER(PROCESS_MEMORY_COUNTERS),
+                    ctypes.wintypes.DWORD,
+                ]
+                k32.K32GetProcessMemoryInfo.restype = ctypes.wintypes.BOOL
 
-            pmc = PROCESS_MEMORY_COUNTERS()
-            pmc.cb = ctypes.sizeof(PROCESS_MEMORY_COUNTERS)
-            handle = k32.GetCurrentProcess()
-            if k32.K32GetProcessMemoryInfo(handle, ctypes.byref(pmc), pmc.cb):
-                return float(pmc.WorkingSetSize / (1024.0 * 1024.0))
+                pmc = PROCESS_MEMORY_COUNTERS()
+                pmc.cb = ctypes.sizeof(PROCESS_MEMORY_COUNTERS)
+                handle = k32.GetCurrentProcess()
+                if k32.K32GetProcessMemoryInfo(handle, ctypes.byref(pmc), pmc.cb):
+                    return float(pmc.WorkingSetSize / (1024.0 * 1024.0))
         except Exception as exc:
             logger.debug("Windows memory check failed: %s", exc)
 
