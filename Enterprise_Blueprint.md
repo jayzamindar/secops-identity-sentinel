@@ -48,12 +48,14 @@ Every phase in this blueprint must satisfy the following **Definition of Done (D
     - `docs/MONITORING_AND_OBSERVABILITY.md`
   - **Blueprint Audits & Logs:**
     - `README.md`
+    - `BUILD_PROMPTS.md`
     - `Blueprint_Repo_Baseline_AuditReport.md`
     - `Blueprint_Production_Readiness_Report.md`
     - `Blueprint_Debug_Log.md`
     - `PROJECT_MAP.md`
 - [x] **0.8 Architectural Delta & Loophole Registry:** Maintain `Blueprint_Debug_Log.md` establishing a forensic registry of all architectural edge cases, vulnerability traps, incident resolutions, explicit technical fixes, and CI/CD verification gate impacts.
 - [x] **0.9 Master Repository Architecture Map (`PROJECT_MAP.md`):** Deploy `PROJECT_MAP.md` at repository root establishing a concise (~50–70 line) index mapping every package directory, source module, test file, deployment artifact, and governance document to its single-line responsibility, enabling fresh AI sessions to understand repository structure in a single bounded read.
+- [x] **0.10 Deterministic Build Prompt Playbook (`BUILD_PROMPTS.md`):** Author and maintain `BUILD_PROMPTS.md` at repository root defining 12 copy-pasteable, self-contained prompt blocks (`BUILD-PROMPT-01` through `BUILD-PROMPT-12`) mapping 1:1 to Phases 1–12 of the blueprint, enabling step-by-step reconstruction in fresh VS Code AI sessions without hallucinations or context rot.
 
 ---
 

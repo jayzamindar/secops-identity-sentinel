@@ -89,6 +89,7 @@ This repository enforces strict, institutional-grade documentation and operation
 │  ├── GEMINI.md                            Master Constitutional Standards & Invariants │
 │  ├── Enterprise_Blueprint.md              12-Phase Engineering Roadmap & Task Tracker  │
 │  ├── PROJECT_MAP.md                       Repository Architecture Map & Module Index   │
+│  ├── BUILD_PROMPTS.md                     Phase-by-Phase VS Code Build Prompt Playbook │
 │  ├── Blueprint_Debug_Log.md               Forensic Incident & Loophole Registry        │
 │  └── init_project.py                      Enterprise Bootstrap & Governance Engine     │
 │                                                                                        │
@@ -124,6 +125,7 @@ This repository enforces strict, institutional-grade documentation and operation
 | **Governance Law** | [`GEMINI.md`](GEMINI.md) | Universal enterprise master handbook; defines constitutional coding standards, `ActionType` allowlist, and zero-trust invariants. | **FROZEN** |
 | **Engineering Plan** | [`Enterprise_Blueprint.md`](Enterprise_Blueprint.md) | Living 12-phase engineering roadmap and production task checklist (Phases 0 through 12). | **ACTIVE** |
 | **Architecture Map** | [`PROJECT_MAP.md`](PROJECT_MAP.md) | High-density architectural index mapping every directory, module, and document to single-line responsibilities. | **ACTIVE** |
+| **Build Playbook** | [`BUILD_PROMPTS.md`](BUILD_PROMPTS.md) | Deterministic phase-by-phase VS Code engineering build prompt playbook (Phases 1–12). | **ACTIVE** |
 | **Incident Ledger** | [`Blueprint_Debug_Log.md`](Blueprint_Debug_Log.md) | Immutable incident ledger and SecOps loophole registry (`SEC-LH-001` through `SEC-LH-005`). | **ACTIVE** |
 | **Bootstrap Tool** | [`init_project.py`](init_project.py) | Standalone CLI scaffolding script for enterprise governance configuration and template cloning. | **READY** |
 | **User Requirements** | [`docs/URD.md`](docs/URD.md) | User personas (SOC, IAM, SRE, MCP), operational access boundaries, end-to-end user journeys (`UC-1` to `UC-6`), and error contracts. | **FROZEN** |

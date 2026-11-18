@@ -10,6 +10,7 @@ This map provides a concise, high-density architectural index of the repository.
 | `README.md` | Hub | Centralized Master Navigation Hub & Production Release Overview (`v1.0.0`) |
 | `init_project.py` | Tooling | Zero-dependency universal scaffolding tool to clone governance framework for new projects |
 | `modular_prompt.md` | PromptOps | Master centralized prompt registry synchronized with `prompts/modules/` |
+| `BUILD_PROMPTS.md` | Playbook | Deterministic phase-by-phase VS Code engineering build prompt playbook (Phases 1–12) |
 | `Blueprint_Repo_Baseline_AuditReport.md` | Audit | Phase 0.1 repository baseline security and architecture audit report |
 | `Blueprint_Production_Readiness_Report.md` | SRE Review | 100/100 SRE production readiness review across 8 operational pillars |
 | `Blueprint_Debug_Log.md` | Forensic Log | Structured incident log and historical architectural loophole registry |
@@ -46,14 +47,19 @@ This map provides a concise, high-density architectural index of the repository.
 | `src/secops_identity_sentinel/mcp/sse.py` | Protocol Server | FastAPI + SSE transport server with `/v1/` versioning, 10MB streaming limit, and graceful shutdown |
 | `src/secops_identity_sentinel/mcp/auth.py` | Security | Constant-time API key authenticator supporting Bearer token, X-API-Key, and query parameters |
 | `src/secops_identity_sentinel/mcp/filters.py` | Security | Sensitive query parameter filter masking `?apiKey=***` in Uvicorn access logs |
-| `tests/conftest.py` | Pytest Fixture | Shared pytest fixtures with clean SQLite, FileLock, and OpenTelemetry teardowns |
-| `tests/test_models.py` | Test Suite | Verification tests for Pydantic v2 telemetry and remediation schemas |
+| `tests/test_package_structure.py` | Test Suite | Verification tests for package structure, Pydantic v2 schemas, and contracts |
 | `tests/test_reasoner.py` | Test Suite | Unit tests for Gemini client, OpenRouter fallback, schema sanitization, and `<think>` stripping |
+| `tests/test_prompt_registry.py` | Test Suite | Verification of prompt compiler, XML tag enclosure, and template synchronization |
+| `tests/test_ingestion_and_ram.py` | Test Suite | Tests for bounded telemetry ingestion, token compaction, and RAM safeguard triggers |
 | `tests/test_guardrails.py` | Test Suite | Tests for safety risk scoring, break-glass protection, and deterministic payload overwriting |
-| `tests/test_heuristics.py` | Test Suite | Verification of impossible travel, credential stuffing, privilege escalation, and CIDR rules |
+| `tests/test_guardrails_phase4.py` | Test Suite | Extended tests for least-privilege IAM deny policies, rollbacks, and HMAC signing |
+| `tests/test_blast_radius.py` | Test Suite | Tests for CIDR canonicalization, IMDS protection, and RFC1918 blast-radius rules |
+| `tests/test_heuristics.py` | Test Suite | Verification of impossible travel, credential stuffing, and privilege escalation rules |
 | `tests/test_mcp.py` | Test Suite | Integration tests for stdio JSON-RPC, SSE endpoints, 10MB body limits, and timing-safe auth |
 | `tests/test_ledger.py` | Test Suite | Concurrency and persistence tests for SQLite WAL, JSONL rotation, and MVCC reads |
-| `tests/test_cli.py` | Test Suite | End-to-end CLI tests for audit, serve, and dry-run subcommands |
+| `tests/test_observability.py` | Test Suite | Unit tests for OpenTelemetry tracing spans, Prometheus metrics, and memory watchdogs |
+| `tests/test_backward_compatibility.py` | Test Suite | Verification of CLI subcommands, backward-compatibility shims, and legacy imports |
+| `tests/test_deployment_blueprints.py` | Test Suite | Tests for serverless container spec, prod Docker Compose, and deployment scripts |
 | `tests/test_phase9_hardening.py` | Test Suite | Comprehensive test suite for all 22 Phase 9 enterprise security invariants |
 | `tests/test_phase12_adversarial.py` | Test Suite | Adversarial test suite verifying edge cases from multi-model red-team audit |
 | `docs/ARCHITECTURE.md` | Documentation | C4 diagrams, sequence flows, component architecture, and operational boundaries |
@@ -63,6 +69,7 @@ This map provides a concise, high-density architectural index of the repository.
 | `docs/Cloud_Deployment_Guide.md` | Documentation | Turnkey deployment runbook for AWS ECS/EKS, Azure Container Apps/AKS, and Kubernetes |
 | `docs/MONITORING_AND_OBSERVABILITY.md` | Documentation | Production telemetry runbook for Golden Signals, alerts, and dashboards |
 | `docs/EPHEMERAL_LEDGER_ARCHITECTURE.md` | Documentation | Architecture guide for persistent ledger durability across ephemeral container hosts |
+| `docs/SECURITY_ADVISORY.md` | Documentation | Security advisory covering query parameter key masking and ledger durability |
 | `deploy/secops-identity-sentinel-deploy.sh` | Deployment | Turnkey automated deployment and health verification shell script |
 | `deploy/serverless-container.yaml` | Deployment | Kubernetes / Knative / Cloud Run container deployment specification |
 | `prompts/modules/` | PromptOps | 6 modular domain prompt templates for Identity, Auth, Network, Workload, IAM, and Runbooks |
