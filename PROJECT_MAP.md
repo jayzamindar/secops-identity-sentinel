@@ -5,7 +5,7 @@ This map provides a concise, high-density architectural index of the repository.
 | Path / Directory | Type | Primary Role & Operational Responsibility |
 |---|---|---|
 | `GEMINI.md` | Governance | Universal Master Handbook: non-negotiable engineering, security, and architectural invariants |
-| `Enterprise_Blueprint.md` | Roadmap | 12-phase engineering roadmap with verifiable DoD checklists and CI/CD quality gates |
+| `Enterprise_Blueprint.md` | Roadmap | 13-phase engineering roadmap (including Phase 13 post-audit remediation) with CI/CD quality gates |
 | `PROJECT_MAP.md` | Index | High-density architectural index mapping repository files to single-line responsibilities |
 | `README.md` | Hub | Centralized Master Navigation Hub & Production Release Overview (`v1.0.0`) |
 | `init_project.py` | Tooling | Zero-dependency universal scaffolding tool to clone governance framework for new projects |
@@ -15,6 +15,7 @@ This map provides a concise, high-density architectural index of the repository.
 | `Blueprint_Production_Readiness_Report.md` | SRE Review | 100/100 SRE production readiness review across 8 operational pillars |
 | `Blueprint_Debug_Log.md` | Forensic Log | Structured incident log and historical architectural loophole registry |
 | `pyproject.toml` | Packaging | PEP 517/621 packaging, tool configs (ruff, mypy, pytest with 15s timeout) |
+| `requirements.lock` | Supply Chain | Pinned deterministic Python dependency lockfile verified in CI |
 | `Dockerfile` | Container | Multi-stage non-root container packaging (<75MB) running as UID 10001 (`sentinel`) |
 | `docker-compose.yml` | Orchestration | Local multi-service development compose stack with health probes |
 | `docker-compose.prod.yml` | Deployment | Production Docker Compose stack with 2048MB memory ceiling and read-only rootfs |
@@ -70,6 +71,7 @@ This map provides a concise, high-density architectural index of the repository.
 | `docs/MONITORING_AND_OBSERVABILITY.md` | Documentation | Production telemetry runbook for Golden Signals, alerts, and dashboards |
 | `docs/EPHEMERAL_LEDGER_ARCHITECTURE.md` | Documentation | Architecture guide for persistent ledger durability across ephemeral container hosts |
 | `docs/SECURITY_ADVISORY.md` | Documentation | Security advisory covering query parameter key masking and ledger durability |
+| `docs/AUDIT_REMEDIATION_LOG.md` | Audit Log | Post-audit remediation & hardening ledger (Phases R1–R5) |
 | `deploy/secops-identity-sentinel-deploy.sh` | Deployment | Turnkey automated deployment and health verification shell script |
 | `deploy/serverless-container.yaml` | Deployment | Kubernetes / Knative / Cloud Run container deployment specification |
 | `prompts/modules/` | PromptOps | 6 modular domain prompt templates for Identity, Auth, Network, Workload, IAM, and Runbooks |

@@ -113,6 +113,7 @@ This repository enforces strict, institutional-grade documentation and operation
 │  ├── Blueprint_Repo_Baseline_AuditReport.md Phase 0.1 Forensic Baseline Audit (Grades) │
 │  ├── Blueprint_Debug_Log.md               SecOps Loopholes (SEC-LH-001 to SEC-LH-005)  │
 │  ├── Blueprint_Production_Readiness_Report.md SRE Sign-Off Across 8 Pillars (100/100)  │
+│  ├── docs/AUDIT_REMEDIATION_LOG.md        Post-Audit Remediation & Hardening (R1–R5)   │
 │  ├── tests/test_phase12_adversarial.py    Phase 12 Adversarial Attack Regression Suite │
 │  └── samples/telemetry_batch.json         Verified Multi-Event Incident Telemetry Sample│
 └────────────────────────────────────────────────────────────────────────────────────────┘
@@ -123,7 +124,7 @@ This repository enforces strict, institutional-grade documentation and operation
 | Document Category | Document Path | Operational Purpose & Key Contents | Status |
 |---|---|---|---|
 | **Governance Law** | [`GEMINI.md`](GEMINI.md) | Universal enterprise master handbook; defines constitutional coding standards, `ActionType` allowlist, and zero-trust invariants. | **FROZEN** |
-| **Engineering Plan** | [`Enterprise_Blueprint.md`](Enterprise_Blueprint.md) | Living 12-phase engineering roadmap and production task checklist (Phases 0 through 12). | **ACTIVE** |
+| **Engineering Plan** | [`Enterprise_Blueprint.md`](Enterprise_Blueprint.md) | Living 13-phase engineering roadmap and production task checklist (Phases 0 through 13). | **ACTIVE** |
 | **Architecture Map** | [`PROJECT_MAP.md`](PROJECT_MAP.md) | High-density architectural index mapping every directory, module, and document to single-line responsibilities. | **ACTIVE** |
 | **Build Playbook** | [`BUILD_PROMPTS.md`](BUILD_PROMPTS.md) | Deterministic phase-by-phase VS Code engineering build prompt playbook (Phases 1–12). | **ACTIVE** |
 | **Incident Ledger** | [`Blueprint_Debug_Log.md`](Blueprint_Debug_Log.md) | Immutable incident ledger and SecOps loophole registry (`SEC-LH-001` through `SEC-LH-005`). | **ACTIVE** |
@@ -141,6 +142,7 @@ This repository enforces strict, institutional-grade documentation and operation
 | **Production Compose** | [`docker-compose.prod.yml`](docker-compose.prod.yml) | Hardened 2048MB container stack with read-only rootfs, non-root user `10001:10001`, and health checks. | **ACTIVE** |
 | **Baseline Audit** | [`Blueprint_Repo_Baseline_AuditReport.md`](Blueprint_Repo_Baseline_AuditReport.md) | Phase 0.1 forensic baseline evaluation across 10 enterprise dimensions with letter grades and technical debt backlog. | **FROZEN** |
 | **Production SRE** | [`Blueprint_Production_Readiness_Report.md`](Blueprint_Production_Readiness_Report.md) | SRE production readiness sign-off across 8 operational pillars (100/100 score). | **FROZEN** |
+| **Remediation Log** | [`docs/AUDIT_REMEDIATION_LOG.md`](docs/AUDIT_REMEDIATION_LOG.md) | Post-audit remediation ledger documenting all R1–R5 security, wiring, and reliability fixes. | **COMPLETE** |
 | **Adversarial Audit** | [`tests/test_phase12_adversarial.py`](tests/test_phase12_adversarial.py) | Phase 12 cross-model red-team regression suite verifying 12 adversarial loophole exploits. | **ACTIVE** |
 | **Identity Catalog** | [`config/identity_catalog.json`](config/identity_catalog.json) | Authoritative enterprise identity catalog defining role tiers, break-glass principals, and blast-radius boundaries. | **ACTIVE** |
 | **Sample Telemetry** | [`samples/telemetry_batch.json`](samples/telemetry_batch.json) | Reference multi-event identity telemetry batch containing verified impossible-travel and OAuth threat scenarios. | **ACTIVE** |

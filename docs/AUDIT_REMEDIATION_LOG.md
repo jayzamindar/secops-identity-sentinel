@@ -1,4 +1,4 @@
-# Hydrozen.md — Verified Production-Readiness Audit & Remediation Ledger
+# AUDIT_REMEDIATION_LOG.md — Verified Production-Readiness Audit & Remediation Ledger
 
 > **Audit Scope:** Full-repository forensic audit of `src/secops_identity_sentinel/`, `.github/workflows/ci.yml`, `Dockerfile`, `docker-compose*.yml`, `deploy/`, `config.py`, `.env.example`, `pyproject.toml`, and governance/architecture docs.
 > **Verification Rule:** Every item below is strictly verified against exact file paths and line numbers observed in this repository. No speculative claims.
