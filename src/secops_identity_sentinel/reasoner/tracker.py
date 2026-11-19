@@ -9,7 +9,9 @@ tertiary offline heuristics adhering to GEMINI.md Section 3.12.
 from __future__ import annotations
 
 import logging
+import threading
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 logger = logging.getLogger(__name__)
 
@@ -49,12 +51,23 @@ class UsageTracker:
         self.prompt_cost_per_million: float = prompt_cost_per_million
         self.completion_cost_per_million: float = completion_cost_per_million
 
+        self._lock = threading.Lock()
+        self._active_utc_date = datetime.now(UTC).date()
         self.prompt_tokens: int = 0
         self.completion_tokens: int = 0
         self.total_tokens: int = 0
         self.total_cost_usd: float = 0.0
         self._tripped: bool = False
         self._trip_reason: str | None = None
+
+    def _rollover_date_if_needed(self) -> None:
+        today = datetime.now(UTC).date()
+        if today != self._active_utc_date:
+            self._active_utc_date = today
+            self.total_cost_usd = 0.0
+            if self._trip_reason and "Daily API spend limit" in self._trip_reason:
+                self._tripped = False
+                self._trip_reason = None
 
     @property
     def is_tripped(self) -> bool:
@@ -71,78 +84,85 @@ class UsageTracker:
         Evaluate current usage against configured ceilings.
         Raises CircuitBreakerTrippedError if any ceiling is breached.
         """
-        if self._tripped:
-            raise CircuitBreakerTrippedError(
-                f"Circuit breaker is already TRIPPED: {self._trip_reason}. "
-                "Halting frontier model call and cascading to deterministic heuristics."
-            )
+        with self._lock:
+            self._rollover_date_if_needed()
+            if self._tripped:
+                raise CircuitBreakerTrippedError(
+                    f"Circuit breaker is already TRIPPED: {self._trip_reason}. "
+                    "Halting frontier model call and cascading to deterministic heuristics."
+                )
 
-        if self.total_tokens >= self.max_session_tokens:
-            self._tripped = True
-            self._trip_reason = (
-                f"Session token ceiling breached: {self.total_tokens} >= {self.max_session_tokens}"
-            )
-            logger.warning("UsageTracker: %s", self._trip_reason)
-            raise CircuitBreakerTrippedError(self._trip_reason)
+            if self.total_tokens >= self.max_session_tokens:
+                self._tripped = True
+                self._trip_reason = (
+                    f"Session token ceiling breached: {self.total_tokens} >= "
+                    f"{self.max_session_tokens}"
+                )
+                logger.warning("UsageTracker: %s", self._trip_reason)
+                raise CircuitBreakerTrippedError(self._trip_reason)
 
-        if self.total_cost_usd >= self.daily_cost_limit_usd:
-            self._tripped = True
-            self._trip_reason = (
-                f"Daily API spend limit breached: "
-                f"${self.total_cost_usd:.4f} >= ${self.daily_cost_limit_usd:.2f}"
-            )
-            logger.warning("UsageTracker: %s", self._trip_reason)
-            raise CircuitBreakerTrippedError(self._trip_reason)
+            if self.total_cost_usd >= self.daily_cost_limit_usd:
+                self._tripped = True
+                self._trip_reason = (
+                    f"Daily API spend limit breached: "
+                    f"${self.total_cost_usd:.4f} >= ${self.daily_cost_limit_usd:.2f}"
+                )
+                logger.warning("UsageTracker: %s", self._trip_reason)
+                raise CircuitBreakerTrippedError(self._trip_reason)
 
     def record_usage(self, prompt_tokens: int, completion_tokens: int) -> TokenUsage:
         """
         Record usage from an LLM invocation and update cumulative state.
         """
-        delta_prompt = max(0, prompt_tokens)
-        delta_completion = max(0, completion_tokens)
-        delta_total = delta_prompt + delta_completion
+        with self._lock:
+            self._rollover_date_if_needed()
+            delta_prompt = max(0, prompt_tokens)
+            delta_completion = max(0, completion_tokens)
+            delta_total = delta_prompt + delta_completion
 
-        # Estimate cost: (prompt / 1M * prompt_rate) + (completion / 1M * completion_rate)
-        delta_cost = (delta_prompt / 1_000_000.0) * self.prompt_cost_per_million + (
-            delta_completion / 1_000_000.0
-        ) * self.completion_cost_per_million
+            delta_cost = (delta_prompt / 1_000_000.0) * self.prompt_cost_per_million + (
+                delta_completion / 1_000_000.0
+            ) * self.completion_cost_per_million
 
-        self.prompt_tokens += delta_prompt
-        self.completion_tokens += delta_completion
-        self.total_tokens += delta_total
-        self.total_cost_usd += delta_cost
+            self.prompt_tokens += delta_prompt
+            self.completion_tokens += delta_completion
+            self.total_tokens += delta_total
+            self.total_cost_usd += delta_cost
 
-        usage = TokenUsage(
-            prompt_tokens=self.prompt_tokens,
-            completion_tokens=self.completion_tokens,
-            total_tokens=self.total_tokens,
-            estimated_cost_usd=round(self.total_cost_usd, 6),
-        )
-
-        # Re-check budget after recording
-        if self.total_tokens >= self.max_session_tokens:
-            self._tripped = True
-            self._trip_reason = (
-                f"Session token ceiling breached: {self.total_tokens} >= {self.max_session_tokens}"
+            usage = TokenUsage(
+                prompt_tokens=self.prompt_tokens,
+                completion_tokens=self.completion_tokens,
+                total_tokens=self.total_tokens,
+                estimated_cost_usd=round(self.total_cost_usd, 6),
             )
-            logger.warning("UsageTracker: %s", self._trip_reason)
-        elif self.total_cost_usd >= self.daily_cost_limit_usd:
-            self._tripped = True
-            self._trip_reason = (
-                f"Daily API spend limit breached: "
-                f"${self.total_cost_usd:.4f} >= ${self.daily_cost_limit_usd:.2f}"
-            )
-            logger.warning("UsageTracker: %s", self._trip_reason)
 
-        return usage
+            if self.total_tokens >= self.max_session_tokens:
+                self._tripped = True
+                self._trip_reason = (
+                    f"Session token ceiling breached: {self.total_tokens} >= "
+                    f"{self.max_session_tokens}"
+                )
+                logger.warning("UsageTracker: %s", self._trip_reason)
+            elif self.total_cost_usd >= self.daily_cost_limit_usd:
+                self._tripped = True
+                self._trip_reason = (
+                    f"Daily API spend limit breached: "
+                    f"${self.total_cost_usd:.4f} >= ${self.daily_cost_limit_usd:.2f}"
+                )
+                logger.warning("UsageTracker: %s", self._trip_reason)
+
+            return usage
 
     def reset(self) -> None:
         """Reset usage metrics and clear tripped status."""
-        self.prompt_tokens = 0
-        self.completion_tokens = 0
-        self.total_tokens = 0
-        self.total_cost_usd = 0.0
-        self._tripped = False
+        with self._lock:
+            self._active_utc_date = datetime.now(UTC).date()
+            self.prompt_tokens = 0
+            self.completion_tokens = 0
+            self.total_tokens = 0
+            self.total_cost_usd = 0.0
+            self._tripped = False
+            self._trip_reason = None
         self._trip_reason = None
 
 

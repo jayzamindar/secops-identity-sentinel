@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import ipaddress
 import json
+import re
+import shlex
 
 from secops_identity_sentinel.guardrails.iam_policy import (
     DENY_ALL_IAM_POLICY,
@@ -23,6 +25,8 @@ from secops_identity_sentinel.models.actions import (
     ActionType,
     ExecutionPayload,
 )
+
+SAFE_RESOURCE_ID_PATTERN: re.Pattern[str] = re.compile(r"^[A-Za-z0-9._:@/+=-]{1,128}$")
 
 
 class MissingRollbackMitigationError(ValueError):
@@ -123,7 +127,16 @@ def validate_target_resource(action_type: str, target_resource: str) -> str:
             raise InvalidResourceIdentifierError(
                 f"Invalid API key identifier length ({len(target)}) for '{target}'"
             )
+        if not SAFE_RESOURCE_ID_PATTERN.match(target):
+            raise InvalidResourceIdentifierError(
+                f"Invalid API key identifier format '{target}'"
+            )
         return target
+
+    if not SAFE_RESOURCE_ID_PATTERN.match(target):
+        raise InvalidResourceIdentifierError(
+            f"Invalid resource identifier format for {action_type}: '{target}'"
+        )
 
     return target
 
@@ -242,6 +255,7 @@ def synthesize_execution_payload(
         )
 
     validated_target = validate_target_resource(action_type, target_resource)
+    quoted_target = shlex.quote(validated_target)
     rollback_cmd = synthesize_rollback_payload(action_type, validated_target, safety_risk)
 
     cli_cmd: str
@@ -250,11 +264,11 @@ def synthesize_execution_payload(
     if action_type == "REVOKE_SESSION":
         cli_cmd = (
             f"aws cognito-idp admin-user-global-sign-out --user-pool-id "
-            f"${{COGNITO_USER_POOL_ID}} --username {validated_target}"
+            f"${{COGNITO_USER_POOL_ID}} --username {quoted_target}"
         )
 
     elif action_type == "ROTATE_API_KEY":
-        cli_cmd = f"aws iam update-access-key --access-key-id {validated_target} --status Inactive"
+        cli_cmd = f"aws iam update-access-key --access-key-id {quoted_target} --status Inactive"
 
     elif action_type == "QUARANTINE_IAM_ROLE":
         match = IAM_ROLE_ARN_PATTERN.match(validated_target)
@@ -262,7 +276,7 @@ def synthesize_execution_payload(
         account_id = match.group("account_id") if match else "123456789012"
         iam_pol = generate_quarantine_iam_policy(validated_target)
         cli_cmd = (
-            f"aws iam put-role-permissions-boundary --role-name {role_name} "
+            f"aws iam put-role-permissions-boundary --role-name {shlex.quote(role_name)} "
             f"--permissions-boundary arn:aws:iam::{account_id}:policy/SentinelDenyAllBoundary"
         )
 
@@ -270,22 +284,22 @@ def synthesize_execution_payload(
         cli_cmd = (
             f"aws ec2 create-network-acl-entry --network-acl-id ${{NACL_ID}} "
             f"--ingress --rule-number 100 --protocol -1 --rule-action deny "
-            f"--cidr-block {validated_target}"
+            f"--cidr-block {quoted_target}"
         )
 
     elif action_type == "SUSPEND_SERVICE_ACCOUNT":
-        cli_cmd = f"gcloud iam service-accounts disable {validated_target}"
+        cli_cmd = f"gcloud iam service-accounts disable {quoted_target}"
 
     elif action_type == "ENFORCE_STEP_UP_MFA":
         cli_cmd = (
             f"aws cognito-idp admin-set-user-mfa-preference --user-pool-id "
-            f"${{COGNITO_USER_POOL_ID}} --username {validated_target} "
+            f"${{COGNITO_USER_POOL_ID}} --username {quoted_target} "
             f"--sms-mfa-settings Enabled=true,PreferredMfa=true"
         )
 
     elif action_type == "ISOLATE_WORKLOAD":
         cli_cmd = (
-            f"aws ec2 modify-instance-attribute --instance-id {validated_target} "
+            f"aws ec2 modify-instance-attribute --instance-id {quoted_target} "
             f"--groups ${{ISOLATION_SECURITY_GROUP_ID}}"
         )
 

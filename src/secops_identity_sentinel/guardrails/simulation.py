@@ -79,8 +79,8 @@ def simulate_remediation_plan(
     Returns:
         SimulationResult: Detailed simulation report.
     """
-    if verify_signature and plan.plan_signature:
-        sig_valid = verify_plan_signature(plan, secret=secret)
+    if verify_signature:
+        sig_valid = bool(plan.plan_signature) and verify_plan_signature(plan, secret=secret)
         if not sig_valid:
             logger.warning(
                 "Simulation aborted: Plan '%s' signature verification failed.",

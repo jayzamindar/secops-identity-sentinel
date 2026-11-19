@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import sqlite3
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -390,6 +391,7 @@ class LedgerDatabase:
 
 
 _ledger_db_instance: LedgerDatabase | None = None
+_ledger_db_lock = threading.Lock()
 
 
 def get_ledger_db() -> LedgerDatabase:
@@ -398,5 +400,7 @@ def get_ledger_db() -> LedgerDatabase:
     """
     global _ledger_db_instance
     if _ledger_db_instance is None:
-        _ledger_db_instance = LedgerDatabase()
+        with _ledger_db_lock:
+            if _ledger_db_instance is None:
+                _ledger_db_instance = LedgerDatabase()
     return _ledger_db_instance

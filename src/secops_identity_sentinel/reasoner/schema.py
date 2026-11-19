@@ -35,11 +35,14 @@ EXCLUDED_PAYLOAD_FIELDS: frozenset[str] = frozenset(
 )
 
 
-def _inline_defs(schema: dict[str, Any], defs: dict[str, Any]) -> dict[str, Any]:
+def _inline_defs(
+    schema: dict[str, Any],
+    defs: dict[str, Any],
+    visited: frozenset[str] = frozenset(),
+) -> dict[str, Any]:
     """
-    Recursively dereference and inline $ref pointers from $defs or definitions.
-
-    Supports arbitrarily deep nested references (A -> B -> C).
+    Recursively dereference and inline $ref pointers from $defs or definitions,
+    guarding against recursive cycles.
     """
     if not isinstance(schema, dict):
         return schema
@@ -48,23 +51,25 @@ def _inline_defs(schema: dict[str, Any], defs: dict[str, Any]) -> dict[str, Any]
     if "$ref" in schema:
         ref_path = schema["$ref"]
         ref_name = ref_path.split("/")[-1]
+        if ref_name in visited:
+            return {"type": "object", "description": f"Recursive reference to {ref_name}"}
         if ref_name in defs:
             resolved = copy.deepcopy(defs[ref_name])
             if isinstance(resolved, dict):
                 for k, v in schema.items():
                     if k != "$ref":
                         resolved[k] = v
-            # Recursively resolve any further $refs in the inlined definition
-            return _inline_defs(resolved, defs)
+            return _inline_defs(resolved, defs, visited | {ref_name})
         return schema
 
     result: dict[str, Any] = {}
     for key, value in schema.items():
         if isinstance(value, dict):
-            result[key] = _inline_defs(value, defs)
+            result[key] = _inline_defs(value, defs, visited)
         elif isinstance(value, list):
             result[key] = [
-                _inline_defs(item, defs) if isinstance(item, dict) else item for item in value
+                _inline_defs(item, defs, visited) if isinstance(item, dict) else item
+                for item in value
             ]
         else:
             result[key] = value
@@ -148,6 +153,19 @@ def clean_gemini_schema(
 
         # Step 2a: Collapse anyOf / oneOf nullables
         node = _collapse_any_of(node)
+
+        # Collapse single-element allOf and convert Pydantic v2 const -> enum
+        if "allOf" in node and isinstance(node["allOf"], list) and len(node["allOf"]) == 1:
+            inner = node["allOf"][0]
+            if isinstance(inner, dict):
+                merged = copy.deepcopy(inner)
+                for peer_key in ("description", "title"):
+                    if peer_key in node and peer_key not in merged:
+                        merged[peer_key] = node[peer_key]
+                node = merged
+        if "const" in node and "enum" not in node:
+            node = dict(node)
+            node["enum"] = [node.pop("const")]
 
         # Step 2b: Strip execution_payload from required
         if strip_execution_payload and "required" in node and isinstance(node["required"], list):

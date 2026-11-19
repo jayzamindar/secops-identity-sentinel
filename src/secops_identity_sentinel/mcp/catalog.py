@@ -30,6 +30,7 @@ from secops_identity_sentinel.mcp.protocol import (
 )
 from secops_identity_sentinel.models.actions import VALID_ACTION_TYPES
 from secops_identity_sentinel.models.audit import AuditEvent
+from secops_identity_sentinel.reasoner.cascade import MultiModelCascadeRelay
 
 logger = logging.getLogger(__name__)
 
@@ -171,8 +172,11 @@ class MCPHandler:
     Dispatcher for JSON-RPC 2.0 requests across MCP tools, prompts, and resources.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, cascade_relay: MultiModelCascadeRelay | None = None) -> None:
         self.heuristics_engine = DeterministicHeuristicsEngine()
+        self.cascade_relay = cascade_relay or MultiModelCascadeRelay(
+            tertiary_engine=self.heuristics_engine
+        )
 
     def handle_request(self, request: JSONRPCRequest) -> JSONRPCResponse | None:
         """
@@ -282,7 +286,7 @@ class MCPHandler:
             if not isinstance(raw_telemetry, str):
                 raw_telemetry = json.dumps(raw_telemetry)
 
-            analysis = self.heuristics_engine.evaluate_telemetry(raw_telemetry)
+            analysis = self.cascade_relay.evaluate_telemetry(raw_telemetry)
             return JSONRPCResponse.make_success(
                 req_id,
                 {
@@ -338,8 +342,8 @@ class MCPHandler:
                         plan_signature=plan.plan_signature,
                         raw_payload=action.model_dump_json(),
                     )
-                    ledger_db.record_audit_event(event)
-                    audit_logger.write_event(event)
+                    if ledger_db.record_audit_event(event):
+                        audit_logger.write_event(event)
             else:
                 event = AuditEvent(
                     event_id=f"evt-{uuid.uuid4().hex[:12]}",
@@ -356,8 +360,8 @@ class MCPHandler:
                     plan_signature=plan.plan_signature,
                     raw_payload=plan.model_dump_json(),
                 )
-                ledger_db.record_audit_event(event)
-                audit_logger.write_event(event)
+                if ledger_db.record_audit_event(event):
+                    audit_logger.write_event(event)
 
             return JSONRPCResponse.make_success(
                 req_id,

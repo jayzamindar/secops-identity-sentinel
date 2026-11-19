@@ -96,14 +96,23 @@ class CredentialStuffingDetector:
         Record failure in sliding windows and generate proposed actions if thresholds are breached.
         """
         actions: list[ProposedRemediationAction] = []
-        current_ts = timestamp.replace(tzinfo=UTC).timestamp()
+        current_ts = (
+            timestamp.astimezone(UTC).timestamp()
+            if timestamp.tzinfo is not None
+            else timestamp.replace(tzinfo=UTC).timestamp()
+        )
         cutoff_ts = current_ts - self.window_sec
 
         # 1. Update and prune per-principal failures
         p_records = self._principal_failures[principal_id]
         p_records.append(timestamp)
         while p_records:
-            if p_records[0].replace(tzinfo=UTC).timestamp() < cutoff_ts:
+            rec_ts = (
+                p_records[0].astimezone(UTC).timestamp()
+                if p_records[0].tzinfo is not None
+                else p_records[0].replace(tzinfo=UTC).timestamp()
+            )
+            if rec_ts < cutoff_ts:
                 p_records.popleft()
             else:
                 break
@@ -133,7 +142,16 @@ class CredentialStuffingDetector:
             len(distinct_principals) >= DISTINCT_PRINCIPALS_FOR_IP_BLOCK
             or ip_failure_count >= TOTAL_IP_FAILURES_FOR_BLOCK
         ):
-            target_cidr = f"{source_ip}/32" if "/" not in source_ip else source_ip
+            if "/" not in source_ip:
+                try:
+                    import ipaddress as _ipaddr
+
+                    prefix = 128 if _ipaddr.ip_address(source_ip).version == 6 else 32
+                    target_cidr = f"{source_ip}/{prefix}"
+                except ValueError:
+                    target_cidr = f"{source_ip}/32"
+            else:
+                target_cidr = source_ip
             block_action: ActionType = "BLOCK_CIDR"
             actions.append(
                 ProposedRemediationAction(

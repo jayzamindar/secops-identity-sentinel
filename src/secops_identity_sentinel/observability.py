@@ -13,7 +13,7 @@ import logging
 import re
 import time
 from collections.abc import Generator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
 from typing import Any
 
@@ -52,6 +52,19 @@ def init_observability() -> None:
 
 
 init_observability()
+
+
+def shutdown_observability() -> None:
+    """
+    Flush and shut down OpenTelemetry TracerProvider and MeterProvider cleanly.
+    """
+    global _tracer_provider, _meter_provider
+    if _tracer_provider is not None:
+        with suppress(Exception):
+            _tracer_provider.shutdown()
+    if _meter_provider is not None:
+        with suppress(Exception):
+            _meter_provider.shutdown()
 
 
 def get_tracer(name: str = "secops-identity-sentinel") -> Tracer:
@@ -223,13 +236,17 @@ class StructuredJsonFormatter(logging.Formatter):
         }
 
         if record.exc_info:
-            log_data["exception"] = self.formatException(record.exc_info)
+            raw_exc = self.formatException(record.exc_info)
+            for pattern, replacement in self.REDACTION_PATTERNS:
+                raw_exc = pattern.sub(replacement, raw_exc)
+            log_data["exception"] = raw_exc
 
         return json.dumps(log_data, ensure_ascii=False)
 
 
 __all__: list[str] = [
     "init_observability",
+    "shutdown_observability",
     "get_tracer",
     "get_meter",
     "trace_span",

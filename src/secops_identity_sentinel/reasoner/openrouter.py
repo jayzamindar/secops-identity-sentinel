@@ -134,11 +134,18 @@ class OpenRouterFallbackClient:
         Build the OpenAI-compatible chat completions payload.
         """
         system_directive, user_prompt = compile_reasoning_prompt(telemetry_payload_json)
+        schema_instruction = (
+            "\n\nRESPONSE JSON SCHEMA REQUIREMENT:\n"
+            "Return ONLY a valid JSON object matching this exact top-level schema:\n"
+            '{"incident_summary": "<string>", "risk_score": <int 1-5>, '
+            '"actions": [{"action_type": "<ActionType>", "target_resource": "<string>", '
+            '"safety_risk": <int 1-5>, "justification": "<string>"}]}'
+        )
 
         return {
             "model": self.model_name,
             "messages": [
-                {"role": "system", "content": system_directive},
+                {"role": "system", "content": system_directive + schema_instruction},
                 {"role": "user", "content": user_prompt},
             ],
             "temperature": 0.0,
@@ -182,6 +189,9 @@ class OpenRouterFallbackClient:
             raise SecondaryReasonerError(
                 f"Failed compiling OpenRouter chat payload: {exc}", original_error=exc
             ) from exc
+
+        if not self.api_key.strip():
+            raise SecondaryReasonerError("OPENROUTER_API_KEY is not configured")
 
         endpoint = f"{self.base_url}/chat/completions"
         headers = {
@@ -241,21 +251,36 @@ class OpenRouterFallbackClient:
                 client.close()
 
         # 4. Extract token usage and record in tracker
-        usage_meta = data.get("usage", {})
-        prompt_tokens = usage_meta.get("prompt_tokens", 0)
-        completion_tokens = usage_meta.get("completion_tokens", 0)
-        self.tracker.record_usage(prompt_tokens, completion_tokens)
+        try:
+            if not isinstance(data, dict):
+                raise SecondaryReasonerError("OpenRouter HTTP response JSON root is not an object")
 
-        # 5. Extract content choice
-        choices = data.get("choices", [])
-        if not choices:
-            raise SecondaryReasonerError("OpenRouter returned zero response choices")
+            if "error" in data and not data.get("choices"):
+                raise SecondaryReasonerError(f"OpenRouter returned API error: {data['error']}")
 
-        choice = choices[0]
-        message = choice.get("message", {})
-        raw_content = message.get("content", "")
-        if not raw_content:
-            raise SecondaryReasonerError("OpenRouter choice contains empty content")
+            usage_meta = data.get("usage") or {}
+            if not isinstance(usage_meta, dict):
+                usage_meta = {}
+            prompt_tokens = int(usage_meta.get("prompt_tokens") or 0)
+            completion_tokens = int(usage_meta.get("completion_tokens") or 0)
+            self.tracker.record_usage(prompt_tokens, completion_tokens)
+
+            # 5. Extract content choice
+            choices = data.get("choices") or []
+            if not choices or not isinstance(choices, list):
+                raise SecondaryReasonerError("OpenRouter returned zero response choices")
+
+            choice = choices[0] if isinstance(choices[0], dict) else {}
+            message = choice.get("message") or {}
+            raw_content = message.get("content") if isinstance(message, dict) else ""
+            if not isinstance(raw_content, str) or not raw_content.strip():
+                raise SecondaryReasonerError("OpenRouter choice contains empty content")
+        except SecondaryReasonerError:
+            raise
+        except Exception as exc:
+            raise SecondaryReasonerError(
+                f"Malformed OpenRouter response structure: {exc}", original_error=exc
+            ) from exc
 
         # 6. Strip reasoning tags (<think>...</think>) and markdown fences
         cleaned_json_text = strip_reasoning_and_fences(raw_content)

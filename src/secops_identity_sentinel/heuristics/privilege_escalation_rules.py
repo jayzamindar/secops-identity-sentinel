@@ -163,14 +163,14 @@ class PrivilegeEscalationDetector:
 
         if norm_principal.endswith(".iam.gserviceaccount.com") or "serviceaccount" in norm_target:
             return "SUSPEND_SERVICE_ACCOUNT"
-        if norm_principal.startswith("akia") or "key" in norm_target or "credential" in norm_target:
-            return "ROTATE_API_KEY"
         if "@" in norm_principal and not norm_principal.endswith(".iam.gserviceaccount.com"):
             return "REVOKE_SESSION"
         if norm_target.startswith("arn:aws:iam::") and ":role/" in norm_target:
             return "QUARANTINE_IAM_ROLE"
         if norm_principal.startswith("arn:aws:iam::") and ":role/" in norm_principal:
             return "QUARANTINE_IAM_ROLE"
+        if norm_principal.startswith("akia") or "key" in norm_target or "credential" in norm_target:
+            return "ROTATE_API_KEY"
 
         return "REVOKE_SESSION"
 
@@ -212,7 +212,10 @@ class PrivilegeEscalationDetector:
             resource_target = str(
                 event.get("resource_target") or event.get("target") or principal_id
             )
-            reported_count = int(event.get("api_call_count_1m") or event.get("calls") or 0)
+            try:
+                reported_count = int(event.get("api_call_count_1m") or event.get("calls") or 0)
+            except (TypeError, ValueError):
+                reported_count = 0
         else:
             return None
 

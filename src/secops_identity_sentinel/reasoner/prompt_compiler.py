@@ -237,6 +237,10 @@ def load_prompt_module(
     """
     base_dir = Path(prompts_dir).resolve() if prompts_dir is not None else get_default_prompts_dir()
     clean_name = module_name.strip().replace("\\", "/").lstrip("/")
+    if ".." in Path(clean_name).parts:
+        raise PromptPathTraversalError(
+            f"Path traversal detected in prompt module: '{module_name}'"
+        )
     if not clean_name.endswith(".md"):
         candidate_module = Path("modules") / f"{clean_name}.md"
         candidate_direct = Path(f"{clean_name}.md")
@@ -244,7 +248,12 @@ def load_prompt_module(
         candidate_module = Path("modules") / clean_name
         candidate_direct = Path(clean_name)
 
-    if (base_dir / candidate_module).resolve().is_file():
+    resolved_module = (base_dir / candidate_module).resolve()
+    if not resolved_module.is_relative_to(base_dir):
+        raise PromptPathTraversalError(
+            f"Path traversal detected in prompt module: '{module_name}'"
+        )
+    if resolved_module.is_file():
         return load_prompt_file(candidate_module, prompts_dir=base_dir)
     return load_prompt_file(candidate_direct, prompts_dir=base_dir)
 

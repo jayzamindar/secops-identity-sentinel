@@ -155,25 +155,25 @@ def validate_iam_policy_no_wildcards(
         if allow_quarantine_deny_all and sid == "SentinelDenyAllBoundary" and effect == "Deny":
             continue
 
-        actions = stmt.get("Action", [])
-        if isinstance(actions, str):
-            actions = [actions]
+        for field_name in ("Action", "NotAction"):
+            actions = stmt.get(field_name, [])
+            if isinstance(actions, str):
+                actions = [actions]
+            for action in actions:
+                if action == "*" or (isinstance(action, str) and "*" in action):
+                    raise WildcardPermissionViolationError(
+                        f"Wildcard {field_name} '{action}' is strictly forbidden in IAM policies."
+                    )
 
-        resources = stmt.get("Resource", [])
-        if isinstance(resources, str):
-            resources = [resources]
-
-        for action in actions:
-            if action == "*" or (isinstance(action, str) and "*" in action):
-                raise WildcardPermissionViolationError(
-                    f"Wildcard Action '{action}' is strictly forbidden in IAM policies."
-                )
-
-        for resource in resources:
-            if resource == "*" or (isinstance(resource, str) and "*" in resource):
-                raise WildcardPermissionViolationError(
-                    f"Wildcard Resource '{resource}' is strictly forbidden in IAM policies."
-                )
+        for field_name in ("Resource", "NotResource"):
+            resources = stmt.get(field_name, [])
+            if isinstance(resources, str):
+                resources = [resources]
+            for resource in resources:
+                if resource == "*" or (isinstance(resource, str) and "*" in resource):
+                    raise WildcardPermissionViolationError(
+                        f"Wildcard {field_name} '{resource}' is strictly forbidden in IAM policies."
+                    )
 
 
 def generate_quarantine_iam_policy(role_arn: str) -> str:

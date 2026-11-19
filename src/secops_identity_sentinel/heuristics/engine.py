@@ -246,7 +246,15 @@ class DeterministicHeuristicsEngine:
             proposed_cidr = ev.get("proposed_cidr") or ev.get("cidr_to_block")
             if proposed_cidr:
                 cidr_str = str(proposed_cidr)
-                allow_bg = bool(tags.get("allow_break_glass") or tags.get("break_glass_approval"))
+                allow_bg = str(tags.get("allow_break_glass") or "").strip().lower() in {
+                    "true",
+                    "1",
+                    "yes",
+                } or str(tags.get("break_glass_approval") or "").strip().lower() in {
+                    "true",
+                    "1",
+                    "yes",
+                }
                 canon_cidr, is_safe, reason = self.blast_radius.evaluate_cidr(
                     cidr_str, allow_break_glass=allow_bg
                 )

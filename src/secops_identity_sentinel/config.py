@@ -64,7 +64,7 @@ class Settings(BaseSettings):
     # Secondary Fallback Engine (OpenRouter)
     openrouter_api_key: str = Field(default="", description="OpenRouter fallback API key")
     openrouter_model_name: str = Field(
-        default="openrouter/qwen-2.5-coder-32b-instruct",
+        default="qwen/qwen-2.5-coder-32b-instruct",
         description="Secondary fallback model identifier",
     )
     openrouter_base_url: str = Field(
@@ -162,16 +162,15 @@ class Settings(BaseSettings):
                     "must be configured with a strong, non-default secret in production."
                 )
 
-            # Validate MCP API Key if auth required
-            if self.require_auth:
-                mcp_lower = self.mcp_api_key.lower()
-                if not self.mcp_api_key.strip() or any(
-                    m in mcp_lower for m in insecure_secret_markers
-                ):
-                    raise RuntimeError(
-                        "Production security violation: MCP_API_KEY must be configured "
-                        "with a strong API key when REQUIRE_AUTH=true in production."
-                    )
+            # Validate MCP API Key unconditionally in production (fail-closed)
+            mcp_lower = self.mcp_api_key.lower()
+            if not self.mcp_api_key.strip() or any(
+                m in mcp_lower for m in insecure_secret_markers
+            ):
+                raise RuntimeError(
+                    "Production security violation: MCP_API_KEY must be configured "
+                    "with a strong API key in production."
+                )
 
         return self
 

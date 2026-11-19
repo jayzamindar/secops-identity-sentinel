@@ -92,14 +92,23 @@ class ContentSizeLimitMiddleware:
                     raise PayloadTooLargeError("Payload Too Large: Exceeds 10MB limit")
             return message
 
+        response_started = False
+
+        async def tracked_send(message: Message) -> None:
+            nonlocal response_started
+            if message["type"] == "http.response.start":
+                response_started = True
+            await send(message)
+
         try:
-            await self.app(scope, tracked_receive, send)
+            await self.app(scope, tracked_receive, tracked_send)
         except PayloadTooLargeError:
-            response = JSONResponse(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                content={"detail": "Payload Too Large: Exceeds 10MB limit"},
-            )
-            await response(scope, receive, send)
+            if not response_started:
+                response = JSONResponse(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    content={"detail": "Payload Too Large: Exceeds 10MB limit"},
+                )
+                await response(scope, receive, send)
 
 
 # Session state for SSE streaming
@@ -114,20 +123,20 @@ async def graceful_drain_and_checkpoint() -> None:
     Drain active SSE streams and execute PRAGMA wal_checkpoint(TRUNCATE).
     """
     logger.info("Initiating graceful server shutdown and SSE stream drainage...")
-    shutdown_event.set()
 
-    # Drain active SSE sessions by sending closure notifications
+    # Drain active SSE sessions by sending closure notifications before signaling shutdown
+    shutdown_payload = json.dumps(
+        {
+            "jsonrpc": "2.0",
+            "method": "notifications/shutdown",
+            "params": {"message": "Server shutting down"},
+        }
+    )
     for _session_id, q in list(session_queues.items()):
         with suppress(Exception):
-            await q.put(
-                json.dumps(
-                    {
-                        "jsonrpc": "2.0",
-                        "method": "notifications/shutdown",
-                        "params": {"message": "Server shutting down"},
-                    }
-                )
-            )
+            await q.put(shutdown_payload)
+
+    shutdown_event.set()
 
     # Async offload of TRUNCATE checkpoint to worker thread
     ledger_db = get_ledger_db()
@@ -143,17 +152,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     """
     FastAPI lifespan manager configuring access log sanitization and graceful shutdown.
     """
-    # Attach sensitive query parameter redaction to uvicorn access logs
+    # Attach sensitive query parameter redaction to uvicorn access logs (once)
     uvicorn_logger = logging.getLogger("uvicorn.access")
-    redaction_filter = SensitiveQueryParamFilter()
-    if redaction_filter not in uvicorn_logger.filters:
-        uvicorn_logger.addFilter(redaction_filter)
+    if not any(isinstance(f, SensitiveQueryParamFilter) for f in uvicorn_logger.filters):
+        uvicorn_logger.addFilter(SensitiveQueryParamFilter())
 
     shutdown_event.clear()
     yield
 
     # Shutdown sequence
     await graceful_drain_and_checkpoint()
+    from secops_identity_sentinel.observability import shutdown_observability
+
+    shutdown_observability()
 
 
 def create_mcp_app() -> FastAPI:
@@ -242,12 +253,12 @@ def create_mcp_app() -> FastAPI:
             yield f"event: endpoint\ndata: {endpoint_url}\n\n"
 
             try:
-                while not shutdown_event.is_set():
+                while not shutdown_event.is_set() or not queue.empty():
                     try:
                         msg = await asyncio.wait_for(queue.get(), timeout=1.0)
                         yield f"event: message\ndata: {msg}\n\n"
                     except TimeoutError:
-                        if await request.is_disconnected():
+                        if shutdown_event.is_set() or await request.is_disconnected():
                             break
                         yield ": ping\n\n"
             finally:
@@ -321,9 +332,15 @@ def create_mcp_app() -> FastAPI:
 
         # Check if client requested delivery over an active SSE session
         session_id = request.query_params.get("sessionId")
-        if session_id and session_id in session_queues:
+        if session_id:
+            target_queue = session_queues.get(session_id)
+            if target_queue is None:
+                return JSONResponse(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    content={"detail": f"Unknown or expired SSE sessionId: {session_id}"},
+                )
             if rpc_resp is not None:
-                await session_queues[session_id].put(rpc_resp.model_dump_json())
+                await target_queue.put(rpc_resp.model_dump_json())
             return JSONResponse(
                 status_code=status.HTTP_202_ACCEPTED, content={"status": "accepted"}
             )

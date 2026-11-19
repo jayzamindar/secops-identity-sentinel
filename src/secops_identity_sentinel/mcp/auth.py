@@ -45,7 +45,10 @@ def authenticate_request(
     if not inbound_key:
         return False
 
-    return hmac.compare_digest(inbound_key.strip(), target_expected.strip())
+    return hmac.compare_digest(
+        inbound_key.strip().encode("utf-8"),
+        target_expected.strip().encode("utf-8"),
+    )
 
 
 def extract_api_key(

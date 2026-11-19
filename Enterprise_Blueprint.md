@@ -77,11 +77,11 @@ Every phase in this blueprint must satisfy the following **Definition of Done (D
 - [x] **2.1 Package Decomposition:** Author `src/secops_identity_sentinel/` with submodules:
   - [x] `config.py`: Centralized `pydantic-settings` configuration loading `GEMINI_MODEL_NAME` (default: `gemini-3.8-flash-high`), `MAX_OUTPUT_TOKENS=8192`, `MAX_PAYLOAD_SIZE_BYTES=10485760` (10MB), and `FILELOCK_TIMEOUT_SEC=10.0` dynamically with fail-closed production checks.
   - [x] `models/`: Strictly typed Pydantic v2 schemas: `ActionType` Enum mapping (`REVOKE_SESSION`, `QUARANTINE_IAM_ROLE`, `BLOCK_CIDR`, `ROTATE_API_KEY`, `SUSPEND_SERVICE_ACCOUNT`, `ENFORCE_STEP_UP_MFA`, `ISOLATE_WORKLOAD`), `telemetry.py` (identity events, auth logs, API calls, CIDR network flows, sanitized and bounded freeform strings: OAuth scopes, User-Agent, ASN/geo), `remediation.py` (actions, plans, execution payloads with mandatory ISO-8601 UTC `issued_at`, `expires_at` [TTL $\le 300\text{s}$], and unique `plan_id` nonce for replay defense), `audit.py` (ledger events).
-  - [x] `guardrails/`: `risk_scorer.py` (1–5 safety scoring), `quarantine.py` (mitigation verification, case-insensitive and catalog-backed break-glass protection, and Enum validation fail-closed sequence), `iam_policy.py` (least-privilege IAM policy generator), and `rollback.py` (deterministic rollback synthesis with human-gated ITSM security tickets for credential/session revocations and automated CLI rollbacks for network/IAM boundary mutations).
+  - [x] `guardrails/`: `engine.py` (1–5 safety scoring, mitigation verification, case-insensitive and catalog-backed break-glass protection, and Enum validation fail-closed sequence), `signing.py` (HMAC-SHA256 signing & anti-replay), `simulation.py` (dry-run simulation), `iam_policy.py` (least-privilege IAM policy generator), and `rollback.py` (deterministic rollback synthesis with human-gated ITSM security tickets for credential/session revocations and automated CLI rollbacks for network/IAM boundary mutations).
   - [x] `heuristics/`: Deterministic rule engines: `impossible_travel_rules.py`, `credential_stuffing_rules.py`, `privilege_escalation_rules.py`, `blast_radius_rules.py`, and `engine.py`.
   - [x] `reasoner/`: `client.py` (Gemini 3.8 Flash High client with 8192 output token ceiling), `openrouter.py` (secondary fallback client), and `prompt_compiler.py` (anti-injection sanitization).
-  - [x] `ledger/`: `store.py` thread-safe audit ledger with SQLite WAL persistence and write-only file locking preserving MVCC for reads.
-  - [x] `mcp/`: Protocol servers: `server_stdio.py` (standard I/O JSON-RPC 2.0 with 10MB ceiling) and `server_sse.py` (FastAPI + Starlette SSE with 10MB body middleware).
+  - [x] `ledger/`: `db.py` thread-safe audit ledger with SQLite WAL persistence and write-only file locking preserving MVCC for reads, plus `audit_logger.py` and `memory.py`.
+  - [x] `mcp/`: Protocol servers: `stdio.py` (standard I/O JSON-RPC 2.0 with 10MB ceiling) and `sse.py` (FastAPI + Starlette SSE with 10MB body middleware).
   - [x] `cli.py`: Click CLI runner with audit, dry-run, and server execution subcommands.
 - [x] **2.2 Backward Compatibility Shims:** Maintain necessary compatibility aliases to guarantee zero breaking changes across existing callers.
 - [x] **2.3 Baseline Test Suite Validation:** Verify that all initial module imports and basic contract unit tests pass cleanly.
@@ -265,7 +265,16 @@ Every phase in this blueprint must satisfy the following **Definition of Done (D
 
 ## 3. Verification Commands Quick Reference
 
-```bash
+```
+
+---
+
+## Phase 13: Post-Audit Remediation & Production Hardening (R1–R4)
+Tracked in [`docs/AUDIT_REMEDIATION_LOG.md`](docs/AUDIT_REMEDIATION_LOG.md):
+- [x] **R1 (AI Cascade & Live Client Fixes):** Wired `MultiModelCascadeRelay` into `cli.py` (with `--offline`) and `mcp/catalog.py`; fixed Gemini `generationConfig.thinkingConfig` & `thought: true` part filtering; fixed OpenRouter schema instructions & default `qwen/qwen-2.5-coder-32b-instruct`; fixed `mcp/stdio.py` `INTERNAL_ERROR`.
+- [x] **R2 (Guardrail, Signing & Auth Hardening):** Fixed `simulate_remediation_plan` empty-signature bypass; isolated untrusted `idp_claims` & fixed `bool("false")` CIDR bypass; enforced `SAFE_RESOURCE_ID_PATTERN` + `shlex.quote()` in `rollback.py`; fixed non-ASCII `mcp/auth.py` `compare_digest`; enforced prod `MCP_API_KEY`; bounded `PlanIdempotencyRegistry`; hardened `prompt_compiler.py` path check.
+- [x] **R3 (SSE, Ledger, Concurrency & Heuristics):** Fixed SSE `notifications/shutdown` drainage, `session_queues.get()` race, `ContentSizeLimitMiddleware` `response_started` guard, and OTel `shutdown_observability()`; skipped duplicate JSONL writes on replay; added singleton locks; fixed IPv6 `fc00::/7`, `/128` stuffing CIDR, and `.astimezone(UTC)` timezone conversion.
+- [x] **R4 (Supply Chain, Containers & Hygiene):** Generated `requirements.lock`, updated `.github/workflows/ci.yml` lockfile check & Python 3.14 `continue-on-error`, hardened `docker-compose.yml`, updated `deploy/serverless-container.yaml`, and removed temporary root `.db` files.bash
 # 0. Single quiet verification chain (recommended for rapid local & CI validation)
 ruff check src/ tests/ && ruff format --check src/ tests/ && mypy src/ && pytest -q --tb=short --cov=src/secops_identity_sentinel --cov-report=term:skip-covered --cov-fail-under=90
 
@@ -299,3 +308,12 @@ docker compose up -d
 curl -f http://localhost:8080/health
 docker compose down
 ```
+
+---
+
+## Phase 13: Post-Audit Remediation & Production Hardening (R1–R4)
+Tracked in [`docs/AUDIT_REMEDIATION_LOG.md`](docs/AUDIT_REMEDIATION_LOG.md):
+- [x] **R1 (AI Cascade & Live Client Fixes):** Wired `MultiModelCascadeRelay` into `cli.py` (with `--offline`) and `mcp/catalog.py`; fixed Gemini `generationConfig.thinkingConfig` & `thought: true` part filtering; fixed OpenRouter schema instructions & default `qwen/qwen-2.5-coder-32b-instruct`; fixed `mcp/stdio.py` `INTERNAL_ERROR`.
+- [x] **R2 (Guardrail, Signing & Auth Hardening):** Fixed `simulate_remediation_plan` empty-signature bypass; isolated untrusted `idp_claims` & fixed `bool("false")` CIDR bypass; enforced `SAFE_RESOURCE_ID_PATTERN` + `shlex.quote()` in `rollback.py`; fixed non-ASCII `mcp/auth.py` `compare_digest`; enforced prod `MCP_API_KEY`; bounded `PlanIdempotencyRegistry`; hardened `prompt_compiler.py` path check.
+- [x] **R3 (SSE, Ledger, Concurrency & Heuristics):** Fixed SSE `notifications/shutdown` drainage, `session_queues.get()` race, `ContentSizeLimitMiddleware` `response_started` guard, and OTel `shutdown_observability()`; skipped duplicate JSONL writes on replay; added singleton locks; fixed IPv6 `fc00::/7`, `/128` stuffing CIDR, and `.astimezone(UTC)` timezone conversion.
+- [x] **R4 (Supply Chain, Containers & Hygiene):** Generated `requirements.lock`, updated `.github/workflows/ci.yml` lockfile check & Python 3.14 `continue-on-error`, hardened `docker-compose.yml`, updated `deploy/serverless-container.yaml`, and removed temporary root `.db` files.

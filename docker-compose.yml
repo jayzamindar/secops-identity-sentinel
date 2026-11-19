@@ -5,19 +5,25 @@ services:
       dockerfile: Dockerfile
     image: secops-identity-sentinel:latest
     container_name: secops-identity-sentinel
+    user: "10001:10001"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
     restart: unless-stopped
     ports:
       - "8080:8080"
     environment:
-      - ENVIRONMENT=production
+      - ENVIRONMENT=development
       - HOST=0.0.0.0
       - PORT=8080
       - DB_PATH=/app/data/secops_ledger.db
       - AUDIT_LOG_DIR=/app/audit_logs
       - FILELOCK_TIMEOUT_SEC=10.0
-      - PLAN_SIGNING_SECRET=sentinel-prod-signing-secret-key-32bytes!
-      - SECOPS_IDENTITY_SENTINEL_WEBHOOK_SECRET=sentinel-prod-webhook-secret-key-32bytes!
-      - MCP_API_KEY=sentinel-prod-mcp-api-key-32bytes!
+      - PLAN_SIGNING_SECRET=${PLAN_SIGNING_SECRET:-dev-local-signing-secret-change-in-prod}
+      - SECOPS_IDENTITY_SENTINEL_WEBHOOK_SECRET=${SECOPS_IDENTITY_SENTINEL_WEBHOOK_SECRET:-dev-local-webhook-secret-change-in-prod}
+      - MCP_API_KEY=${MCP_API_KEY:-dev-local-mcp-api-key-change-in-prod}
     env_file:
       - path: .env
         required: false

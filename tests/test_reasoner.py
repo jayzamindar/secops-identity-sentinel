@@ -236,7 +236,7 @@ def test_gemini_client_payload_structure() -> None:
     payload = client.build_generation_payload('{"event": "test"}')
 
     # Thinking config invariant
-    assert payload["thinkingConfig"]["thinkingBudget"] == 2048
+    assert payload["generationConfig"]["thinkingConfig"]["thinkingBudget"] == 2048
 
     # Generation config invariants
     gen_cfg = payload["generationConfig"]
@@ -2073,3 +2073,102 @@ def test_parse_retry_after_naive_datetime() -> None:
     parsed = parse_retry_after("21 Oct 2026 07:28:00")
     # Must parse cleanly without raising TypeError or ValueError
     assert parsed is not None
+
+
+def test_gemini_client_skips_thought_parts_and_tracks_thoughts_tokens() -> None:
+    """Verify GeminiReasonerClient skips thought=True parts and counts thoughtsTokenCount."""
+    mock_transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200,
+            json={
+                "usageMetadata": {
+                    "promptTokenCount": 100,
+                    "candidatesTokenCount": 25,
+                    "thoughtsTokenCount": 50,
+                },
+                "candidates": [
+                    {
+                        "finishReason": "STOP",
+                        "content": {
+                            "parts": [
+                                {"thought": True, "text": "Internal reasoning..."},
+                                {
+                                    "text": json.dumps(
+                                        {
+                                            "incident_summary": "Thought-filtered triage",
+                                            "risk_score": 3,
+                                            "actions": [],
+                                        }
+                                    )
+                                },
+                            ]
+                        },
+                    }
+                ],
+            },
+        )
+    )
+    settings = Settings(gemini_api_key="AIzaTestKey")
+    client = GeminiReasonerClient(
+        settings=settings, http_client=httpx.Client(transport=mock_transport)
+    )
+    result = client.evaluate_telemetry('{"events": []}')
+    assert result.incident_summary == "Thought-filtered triage"
+    assert client.tracker.completion_tokens == 75
+
+
+def test_mcp_handler_routes_triage_through_cascade_relay() -> None:
+    """Verify MCPHandler.triage_security_incident invokes MultiModelCascadeRelay."""
+    from secops_identity_sentinel.mcp.catalog import MCPHandler
+    from secops_identity_sentinel.mcp.protocol import JSONRPCRequest
+
+    mock_relay = MagicMock(spec=MultiModelCascadeRelay)
+    mock_relay.evaluate_telemetry.return_value = TriageAnalysisResponse(
+        incident_summary="Cascade-routed MCP triage",
+        risk_score=4,
+        actions=[],
+    )
+    handler = MCPHandler(cascade_relay=mock_relay)
+    req = JSONRPCRequest(
+        jsonrpc="2.0",
+        id=1,
+        method="tools/call",
+        params={"name": "triage_security_incident", "arguments": {"telemetry": '{"events": []}'}},
+    )
+    resp = handler.handle_request(req)
+    assert resp is not None and resp.result is not None
+    mock_relay.evaluate_telemetry.assert_called_once_with('{"events": []}')
+    assert "Cascade-routed MCP triage" in resp.result["content"][0]["text"]
+
+
+def test_cli_audit_uses_cascade_by_default_and_offline_flag(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify CLI audit invokes MultiModelCascadeRelay unless --offline is passed."""
+    from click.testing import CliRunner
+
+    from secops_identity_sentinel.cli import main
+
+    sample_file = tmp_path / "telemetry.json"
+    sample_file.write_text('{"events": []}', encoding="utf-8")
+
+    mock_relay = MagicMock()
+    mock_relay.evaluate.return_value = (
+        TriageAnalysisResponse(incident_summary="CLI cascade", risk_score=1, actions=[]),
+        "PRIMARY",
+    )
+    monkeypatch.setattr("secops_identity_sentinel.cli.MultiModelCascadeRelay", lambda: mock_relay)
+
+    runner = CliRunner()
+    res_online = runner.invoke(main, ["audit", "--telemetry-file", str(sample_file), "--dry-run"])
+    assert res_online.exit_code == 0
+    assert "Reasoning tier: PRIMARY" in res_online.output
+    mock_relay.evaluate.assert_called_once()
+
+    mock_relay.reset_mock()
+    res_offline = runner.invoke(
+        main, ["audit", "--telemetry-file", str(sample_file), "--dry-run", "--offline"]
+    )
+    assert res_offline.exit_code == 0
+    assert "Reasoning tier: TERTIARY" in res_offline.output
+    mock_relay.evaluate.assert_not_called()

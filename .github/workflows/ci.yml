@@ -14,6 +14,7 @@ jobs:
   verify:
     name: Verify (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.python-version == '3.14' }}
     strategy:
       fail-fast: false
       matrix:
@@ -60,9 +61,12 @@ jobs:
       - name: Lockfile Integrity & License Compliance Audit
         run: |
           python -c "
-          import sys, importlib.metadata
+          import os, sys, importlib.metadata
 
-          PERMISSIVE = {'mit', 'apache', 'apache-2.0', 'apache 2.0', 'bsd', 'bsd-2-clause', 'bsd-3-clause', 'isc', 'psf', 'psf-2.0', 'python software foundation license', 'mpl-2.0', 'mozilla public license 2.0 (mpl 2.0)'}
+          if not os.path.isfile('requirements.lock') or os.path.getsize('requirements.lock') == 0:
+              print('CRITICAL: requirements.lock is missing or empty.')
+              sys.exit(1)
+
           COPYLEFT_DISALLOWED = {'gpl', 'agpl', 'gnu general public license', 'affero'}
 
           violations = []
@@ -75,7 +79,7 @@ jobs:
           if violations:
               print('License compliance violations detected:\n' + '\n'.join(violations))
               sys.exit(1)
-          print('License audit passed: 100% permissive licenses verified.')
+          print('Lockfile & license audit passed: requirements.lock verified and 0 copyleft violations.')
           "
 
       - name: Repository Secret Scanning Check

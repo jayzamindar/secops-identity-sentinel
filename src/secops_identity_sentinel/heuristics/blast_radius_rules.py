@@ -37,7 +37,9 @@ PROTECTED_IPV4_RANGES: list[ipaddress.IPv4Network] = [
 ]
 
 PROTECTED_IPV6_RANGES: list[ipaddress.IPv6Network] = [
+    ipaddress.IPv6Network("::/128"),  # IPv6 Unspecified
     ipaddress.IPv6Network("::1/128"),  # IPv6 Loopback
+    ipaddress.IPv6Network("fc00::/7"),  # IPv6 ULA / Private (includes fd00:ec2::254 IMDS)
     ipaddress.IPv6Network("fe80::/10"),  # IPv6 IMDS / Link-Local
     ipaddress.IPv6Network("ff00::/8"),  # IPv6 Multicast
 ]
@@ -248,14 +250,24 @@ class StaleServiceAccountDetector:
             if record.key_age_days is not None:
                 key_age = record.key_age_days
             elif record.key_created_at is not None:
-                key_age = max(0, (now - record.key_created_at).days)
+                created_utc = (
+                    record.key_created_at.astimezone(UTC)
+                    if record.key_created_at.tzinfo is not None
+                    else record.key_created_at.replace(tzinfo=UTC)
+                )
+                key_age = max(0, (now - created_utc).days)
 
             if record.has_active_sessions:
                 is_inactive = False
             elif record.inactive_session_days is not None:
                 is_inactive = record.inactive_session_days >= self.inactive_session_threshold_days
             elif record.last_session_activity is not None:
-                inactive_days = max(0, (now - record.last_session_activity).days)
+                last_act_utc = (
+                    record.last_session_activity.astimezone(UTC)
+                    if record.last_session_activity.tzinfo is not None
+                    else record.last_session_activity.replace(tzinfo=UTC)
+                )
+                inactive_days = max(0, (now - last_act_utc).days)
                 is_inactive = inactive_days >= self.inactive_session_threshold_days
             else:
                 is_inactive = True

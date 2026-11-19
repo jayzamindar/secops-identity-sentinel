@@ -92,6 +92,16 @@ spec:
                 secretKeyRef:
                   name: secops-sentinel-secrets
                   key: GEMINI_API_KEY
+            - name: OPENROUTER_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: secops-sentinel-secrets
+                  key: OPENROUTER_API_KEY
+                  optional: true
+            - name: GEMINI_MODEL_NAME
+              value: "gemini-3.8-flash-high"
+            - name: OPENROUTER_MODEL_NAME
+              value: "qwen/qwen-2.5-coder-32b-instruct"
           livenessProbe:
             httpGet:
               path: /health

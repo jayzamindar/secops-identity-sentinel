@@ -4,7 +4,7 @@
 [![Enterprise CI/CD Gate](https://github.com/jayzamindar/secops-identity-sentinel/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/jayzamindar/secops-identity-sentinel/actions/workflows/ci.yml)
 [![Release v1.0.0](https://img.shields.io/badge/release-v1.0.0-success.svg)](https://github.com/jayzamindar/secops-identity-sentinel)
 [![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
-[![Coverage](https://img.shields.io/badge/coverage-93.66%25-brightgreen.svg)]()
+[![Coverage](https://img.shields.io/badge/coverage-92.73%25-brightgreen.svg)]()
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com)
 [![Gemini 3.8 Flash High](https://img.shields.io/badge/Gemini-3.8_Flash_High-4285F4.svg)](https://ai.google.dev/)
 [![SQLite WAL Concurrency](https://img.shields.io/badge/SQLite-WAL_MVCC-003B57.svg)](https://www.sqlite.org/wal.html)
@@ -21,8 +21,8 @@
 |---|---|---|
 | **Release Version** | `v1.0.0` (Semantic Versioning) | Production-ready enterprise release tagged across all schemas and packaging |
 | **Architectural Scope** | 12 of 12 Phases Certified | Completed Phases 0–12 from [`Enterprise_Blueprint.md`](Enterprise_Blueprint.md) |
-| **Automated Verification** | `285 passed` (0 failed, 0 skipped) | Full unit, integration, and red-team regression suite in under 26 seconds |
-| **Code Coverage Gate** | **93.66%** test coverage | Exceeds the institutional $\ge 90\%$ coverage threshold (`--cov-fail-under=90`) |
+| **Automated Verification** | `292 passed` (0 failed, 0 skipped) | Full unit, integration, and red-team regression suite in ~23 seconds |
+| **Code Coverage Gate** | **92.73%** test coverage | Exceeds the institutional $\ge 90\%$ coverage threshold (`--cov-fail-under=90`) |
 | **Adversarial Audit** | Zero open vulnerabilities | Red-team certified; 100% mitigation of `SEC-LH-001` through `SEC-LH-005` in [`Blueprint_Debug_Log.md`](Blueprint_Debug_Log.md) & [`tests/test_phase12_adversarial.py`](tests/test_phase12_adversarial.py) |
 | **CI/CD Supply Chain** | [GitHub Actions Workflow](.github/workflows/ci.yml) | Multi-version matrix (Python 3.13 & 3.14 on Linux) enforcing Ruff, Mypy, Pytest, `pip-audit`, license compliance, and secret scanning |
 | **Platform Portability** | Cross-Platform Certified | Zero platform regressions across Linux (`ubuntu-latest`), Windows, macOS, and Docker |
@@ -312,9 +312,21 @@ secops-identity-sentinel serve --transport sse --host 0.0.0.0 --port 8080
 - **Security Advisories & Adversarial Audits:**
   - [Security Advisory: API Key Transmission & Distributed Ledger Durability](docs/SECURITY_ADVISORY.md)
   - [Forensic Incident & SecOps Loophole Registry (SEC-LH-001 to SEC-LH-005)](Blueprint_Debug_Log.md)
+  - [Post-Audit Remediation & Hardening Log (Phases R1–R5)](docs/AUDIT_REMEDIATION_LOG.md)
   - [Phase 12 Cross-Model Adversarial Regression Test Suite](tests/test_phase12_adversarial.py)
   - [Phase 0.1 Forensic Baseline Audit & Debt Remediation Report](Blueprint_Repo_Baseline_AuditReport.md)
   - [SRE Production Readiness Review (100/100 Operational Score)](Blueprint_Production_Readiness_Report.md)
+
+---
+
+## 9. Architectural Boundaries & Production Scaling Path
+
+This repository is engineered with explicit, documented operational boundaries for production deployment:
+
+1. **Single-Replica State Model (Horizontal Scaling Path):** `PlanIdempotencyRegistry` (`guardrails/signing.py`), `UsageTracker` (`reasoner/tracker.py`), and SSE `session_queues` (`mcp/sse.py`) are process-local in-memory stores, and `LedgerDatabase` (`ledger/db.py`) uses SQLite WAL. Deploy **1 replica (`replicas: 1`, 1 Uvicorn worker)** backed by a dedicated block volume (EBS / Azure Disk / local PVC), or migrate those stores to **PostgreSQL + Redis** before scaling horizontally across multiple pods.
+2. **Advisory / Plan-Generation Scope:** `secops-identity-sentinel` triages incidents, deterministically overwrites execution payloads, cryptographically signs `SignedRemediationPlan` objects, and runs dry-run simulations (`simulate_remediation_plan`). It does not execute live AWS/GCP/IdP API mutations directly, making it safe for human-in-the-loop approval or downstream SOAR webhook integration.
+3. **Live Model Endpoint Smoke Test:** Automated CI/CD verification mocks external LLM HTTP boundaries (`httpx.MockTransport`) for deterministic, zero-cost regression gates (`292 passed`, `92.73%` coverage). Before enabling Tier 1/Tier 2 in production, run one live smoke test with real `GEMINI_API_KEY` and `OPENROUTER_API_KEY` credentials to confirm target model IDs return HTTP 200.
+4. **TLS Termination & Secrets Injection:** Uvicorn serves plain HTTP on `:8080`. Always deploy behind a **TLS-terminating ingress or reverse proxy** (ALB, Nginx, Cloud Run) and inject `PLAN_SIGNING_SECRET`, `SECOPS_IDENTITY_SENTINEL_WEBHOOK_SECRET`, and `MCP_API_KEY` from a managed secrets store.
 
 ---
 *Autonomous SecOps & Identity Sentinel — Enterprise Cybersecurity Architecture.*

@@ -98,8 +98,16 @@ class ImpossibleTravelDetector:
         """
         dist_km = cls.haversine_distance_km(p1.latitude, p1.longitude, p2.latitude, p2.longitude)
 
-        t1_sec = p1.timestamp.replace(tzinfo=UTC).timestamp()
-        t2_sec = p2.timestamp.replace(tzinfo=UTC).timestamp()
+        t1_sec = (
+            p1.timestamp.astimezone(UTC).timestamp()
+            if p1.timestamp.tzinfo is not None
+            else p1.timestamp.replace(tzinfo=UTC).timestamp()
+        )
+        t2_sec = (
+            p2.timestamp.astimezone(UTC).timestamp()
+            if p2.timestamp.tzinfo is not None
+            else p2.timestamp.replace(tzinfo=UTC).timestamp()
+        )
         delta_hours = (t2_sec - t1_sec) / 3600.0
 
         if delta_hours <= 0:
@@ -171,13 +179,26 @@ class ImpossibleTravelDetector:
         )
 
         prev_point = self._history.get(principal_id)
-        # Update history with current point
-        self._history[principal_id] = current_point
-
         if prev_point is None:
+            self._history[principal_id] = current_point
             return None
 
-        velocity_kmh = self.calculate_geo_velocity(prev_point, current_point)
+        prev_ts = (
+            prev_point.timestamp.astimezone(UTC).timestamp()
+            if prev_point.timestamp.tzinfo is not None
+            else prev_point.timestamp.replace(tzinfo=UTC).timestamp()
+        )
+        curr_ts = (
+            current_point.timestamp.astimezone(UTC).timestamp()
+            if current_point.timestamp.tzinfo is not None
+            else current_point.timestamp.replace(tzinfo=UTC).timestamp()
+        )
+        if curr_ts < prev_ts:
+            # Out-of-order older event: evaluate against newer point without overwriting history
+            velocity_kmh = self.calculate_geo_velocity(current_point, prev_point)
+        else:
+            self._history[principal_id] = current_point
+            velocity_kmh = self.calculate_geo_velocity(prev_point, current_point)
 
         if velocity_kmh > self.velocity_threshold_kmh:
             asn_changed = prev_point.asn != current_point.asn

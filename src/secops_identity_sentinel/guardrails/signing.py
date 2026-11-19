@@ -93,7 +93,7 @@ def resolve_signing_secret(secret: str | None = None) -> str:
 
     cleaned = (resolved_secret or "").strip()
 
-    if env == "production":
+    if env.strip().lower() == "production":
         lower = cleaned.lower()
         if not cleaned or any(m in lower for m in INSECURE_SECRET_MARKERS):
             raise RuntimeError(
@@ -245,6 +245,8 @@ class PlanIdempotencyRegistry:
     return the cached signed plan without re-executing state mutations or ledger events.
     """
 
+    MAX_ENTRIES: int = 10000
+
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._by_idempotency_key: dict[str, SignedRemediationPlan] = {}
@@ -252,9 +254,26 @@ class PlanIdempotencyRegistry:
 
     def record_plan(self, plan: SignedRemediationPlan) -> None:
         """
-        Record a signed plan in the idempotency registry.
+        Record a signed plan in the idempotency registry, pruning expired entries when full.
         """
         with self._lock:
+            if len(self._by_idempotency_key) >= self.MAX_ENTRIES:
+                now = datetime.now(UTC)
+                expired_keys = [
+                    k
+                    for k, p in self._by_idempotency_key.items()
+                    if now
+                    >= (p.expires_at if p.expires_at.tzinfo else p.expires_at.replace(tzinfo=UTC))
+                ]
+                for k in expired_keys:
+                    removed = self._by_idempotency_key.pop(k, None)
+                    if removed is not None:
+                        self._by_plan_id.pop(removed.plan_id, None)
+                if len(self._by_idempotency_key) >= self.MAX_ENTRIES:
+                    oldest_key = next(iter(self._by_idempotency_key))
+                    removed = self._by_idempotency_key.pop(oldest_key)
+                    self._by_plan_id.pop(removed.plan_id, None)
+
             self._by_idempotency_key[plan.idempotency_key] = plan
             self._by_plan_id[plan.plan_id] = plan
 

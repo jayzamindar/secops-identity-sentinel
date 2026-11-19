@@ -22,6 +22,7 @@ from secops_identity_sentinel.guardrails import (
 from secops_identity_sentinel.heuristics.engine import DeterministicHeuristicsEngine
 from secops_identity_sentinel.mcp.sse import run_sse_server
 from secops_identity_sentinel.mcp.stdio import run_stdio_transport
+from secops_identity_sentinel.reasoner.cascade import MultiModelCascadeRelay
 
 
 @click.group(name="secops-identity-sentinel")
@@ -45,13 +46,21 @@ def main() -> None:
     help="Simulate incident triage and containment without executing mutations.",
 )
 @click.option(
+    "--offline",
+    is_flag=True,
+    default=False,
+    help="Bypass external LLM APIs and run Tier 3 deterministic heuristics only.",
+)
+@click.option(
     "--format",
     "output_format",
     type=click.Choice(["json", "table"], case_sensitive=False),
     default="table",
     help="Output formatting style.",
 )
-def audit(telemetry_file: str | None, dry_run: bool, output_format: str) -> None:
+def audit(
+    telemetry_file: str | None, dry_run: bool, offline: bool, output_format: str
+) -> None:
     """
     Execute batch incident triage and containment simulation.
     """
@@ -74,8 +83,13 @@ def audit(telemetry_file: str | None, dry_run: bool, output_format: str) -> None
 
     raw_content = path.read_text(encoding="utf-8").strip()
 
-    engine = DeterministicHeuristicsEngine()
-    analysis_resp = engine.evaluate_telemetry(raw_content)
+    if offline:
+        analysis_resp = DeterministicHeuristicsEngine().evaluate_telemetry(raw_content)
+        execution_tier = "TERTIARY"
+    else:
+        relay = MultiModelCascadeRelay()
+        analysis_resp, execution_tier = relay.evaluate(raw_content)
+    click.echo(f"Reasoning tier: {execution_tier}")
     plan = GuardrailEngine.build_remediation_plan(
         incident_id=f"inc-cli-{uuid.uuid4().hex[:8]}",
         proposed_actions=analysis_resp.actions,

@@ -152,6 +152,7 @@ class JSONLAuditLogger:
 
 
 _jsonl_logger_instance: JSONLAuditLogger | None = None
+_jsonl_logger_lock = threading.Lock()
 
 
 def get_audit_logger() -> JSONLAuditLogger:
@@ -160,5 +161,7 @@ def get_audit_logger() -> JSONLAuditLogger:
     """
     global _jsonl_logger_instance
     if _jsonl_logger_instance is None:
-        _jsonl_logger_instance = JSONLAuditLogger()
+        with _jsonl_logger_lock:
+            if _jsonl_logger_instance is None:
+                _jsonl_logger_instance = JSONLAuditLogger()
     return _jsonl_logger_instance

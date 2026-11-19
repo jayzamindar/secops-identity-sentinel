@@ -126,7 +126,15 @@ class RetryPolicy:
                 return False
             return status in self.transient_statuses
 
-        return isinstance(exc, (httpx.TimeoutException, httpx.ConnectError))
+        return isinstance(
+            exc,
+            (
+                httpx.TimeoutException,
+                httpx.ConnectError,
+                httpx.ReadError,
+                httpx.RemoteProtocolError,
+            ),
+        )
 
     def compute_delay(self, retry_index: int, response: httpx.Response | None = None) -> float:
         """

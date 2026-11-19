@@ -17,6 +17,7 @@ from typing import BinaryIO
 
 from secops_identity_sentinel.mcp.catalog import MCPHandler
 from secops_identity_sentinel.mcp.protocol import (
+    INTERNAL_ERROR,
     INVALID_REQUEST,
     PARSE_ERROR,
     JSONRPCRequest,
@@ -209,7 +210,7 @@ def run_stdio_transport(
             logger.exception("Unexpected error dispatching request: %s", dispatch_exc)
             rpc_response = JSONRPCResponse.make_error(
                 request_id=rpc_request.id,
-                code=INVALID_REQUEST,
+                code=INTERNAL_ERROR,
                 message=str(dispatch_exc),
             )
 

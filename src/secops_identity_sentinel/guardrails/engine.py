@@ -45,6 +45,12 @@ from secops_identity_sentinel.reasoner.client import ProposedRemediationAction
 logger = logging.getLogger(__name__)
 
 
+def _is_truthy_flag(val: str | None) -> bool:
+    if not isinstance(val, str):
+        return False
+    return val.strip().lower() in {"true", "1", "yes"}
+
+
 class GuardrailEngine:
     """
     Deterministic safety and quarantine enforcement engine.
@@ -80,25 +86,29 @@ class GuardrailEngine:
         safety_risk: int
         justification: str
         active_tags: dict[str, str] = dict(tags) if tags else {}
+        trusted_tags: dict[str, str] = dict(tags) if tags else {}
 
         if isinstance(action, ProposedRemediationAction):
             raw_action_type = str(action.action_type)
             raw_target = action.target_resource
-            safety_risk = action.safety_risk
+            safety_risk = max(1, min(5, action.safety_risk))
             justification = action.justification
         elif isinstance(action, dict):
             raw_action_type = str(action.get("action_type") or "")
             raw_target = str(action.get("target_resource") or "")
             try:
-                safety_risk = int(action.get("safety_risk", 1))
+                safety_risk = max(1, min(5, int(action.get("safety_risk", 1))))
             except Exception:
                 safety_risk = 1
-            justification = str(action.get("justification") or "Deterministic guardrail action.")
+            raw_just = str(action.get("justification") or "Deterministic guardrail action.").strip()
+            justification = (raw_just or "Deterministic guardrail action.")[:1024]
 
             # Extract any embedded tags or idp_claims from action dictionary
+            # Note: untrusted idp_claims must NOT grant break-glass overrides
             if "tags" in action and isinstance(action["tags"], dict):
                 for k, v in action["tags"].items():
                     active_tags[str(k)] = str(v)
+                    trusted_tags[str(k)] = str(v)
             if "idp_claims" in action and isinstance(action["idp_claims"], dict):
                 for k, v in action["idp_claims"].items():
                     active_tags[str(k)] = str(v)
@@ -148,10 +158,10 @@ class GuardrailEngine:
 
         # 3.5 CIDR Blast-Radius & IMDS Protection (GEMINI.md Section 3.8 & TRD.md Section 2.3)
         if action_type == "BLOCK_CIDR":
-            allow_bg = bool(
-                active_tags.get("allow_break_glass")
-                or active_tags.get("break_glass_approval")
-                or active_tags.get("break_glass")
+            allow_bg = (
+                _is_truthy_flag(trusted_tags.get("allow_break_glass"))
+                or _is_truthy_flag(trusted_tags.get("break_glass_approval"))
+                or _is_truthy_flag(trusted_tags.get("break_glass"))
             )
             if not is_cidr_safe_from_blast_radius(validated_target, allow_break_glass=allow_bg):
                 logger.warning(
@@ -240,15 +250,21 @@ class GuardrailEngine:
         Build a deterministic remediation plan applying guardrail safety overwrites,
         anti-replay nonces, fail-closed quarantine policies, and HMAC-SHA256 sealing.
         """
-        # Deduplication check: return cached signed plan if idempotency_key is repeated
+        # Deduplication check: return cached plan if idempotency_key or plan_id is repeated
+        cached_plan: SignedRemediationPlan | None = None
         if idempotency_key:
             cached_plan = default_idempotency_registry.get_by_idempotency_key(idempotency_key)
-            if cached_plan is not None:
-                logger.info(
-                    "GuardrailEngine: Returning cached remediation plan for idempotency_key '%s'",
-                    idempotency_key,
-                )
-                return cached_plan
+        if cached_plan is None and plan_id:
+            cached_plan = default_idempotency_registry.get_by_plan_id(plan_id)
+        if cached_plan is not None:
+            if sign and not cached_plan.plan_signature:
+                cached_plan = sign_remediation_plan(cached_plan, secret=secret)
+                default_idempotency_registry.record_plan(cached_plan)
+            logger.info(
+                "GuardrailEngine: Returning cached remediation plan '%s'",
+                cached_plan.plan_id,
+            )
+            return cached_plan
 
         sanitized_actions, is_quarantined, quarantine_reason = cls.sanitize_proposed_actions(
             proposed_actions, catalog=catalog, tags=tags

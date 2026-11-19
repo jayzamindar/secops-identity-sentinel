@@ -81,8 +81,23 @@ class MultiModelCascadeRelay:
             )
 
             self.tertiary_engine: DeterministicHeuristicsEngine = DeterministicHeuristicsEngine()
+            self._custom_tertiary = False
         else:
             self.tertiary_engine = tertiary_engine
+            self._custom_tertiary = True
+
+    def _run_tertiary(
+        self, telemetry_payload_json: str, catalog_path: str | Path | None = None
+    ) -> TriageAnalysisResponse:
+        if catalog_path is not None and not self._custom_tertiary:
+            from secops_identity_sentinel.heuristics.engine import (
+                DeterministicHeuristicsEngine,
+            )
+
+            return DeterministicHeuristicsEngine(catalog_path=catalog_path).evaluate_telemetry(
+                telemetry_payload_json
+            )
+        return self.tertiary_engine.evaluate_telemetry(telemetry_payload_json)
 
     def evaluate(
         self,
@@ -109,7 +124,7 @@ class MultiModelCascadeRelay:
                     "adhering to GEMINI.md Section 3.5.",
                     exc,
                 )
-                result = self.tertiary_engine.evaluate_telemetry(telemetry_payload_json)
+                result = self._run_tertiary(telemetry_payload_json, catalog_path=catalog_path)
                 return result, "TERTIARY"
 
         # Tier 1: Primary Gemini 3.8 Flash High
@@ -126,7 +141,7 @@ class MultiModelCascadeRelay:
                 "Routing directly to Tier 3 (Deterministic SRE Heuristics)...",
                 exc,
             )
-            result = self.tertiary_engine.evaluate_telemetry(telemetry_payload_json)
+            result = self._run_tertiary(telemetry_payload_json, catalog_path=catalog_path)
             return result, "TERTIARY"
         except (PrimaryReasonerError, Exception) as exc:
             logger.warning(
@@ -149,7 +164,7 @@ class MultiModelCascadeRelay:
                 "Routing directly to Tier 3 (Deterministic SRE Heuristics)...",
                 exc,
             )
-            result = self.tertiary_engine.evaluate_telemetry(telemetry_payload_json)
+            result = self._run_tertiary(telemetry_payload_json, catalog_path=catalog_path)
             return result, "TERTIARY"
         except (SecondaryReasonerError, Exception) as exc:
             logger.warning(
@@ -162,7 +177,7 @@ class MultiModelCascadeRelay:
         logger.info(
             "Cascade: Dispatching telemetry triage to Tier 3 (Deterministic SRE Heuristics)..."
         )
-        result = self.tertiary_engine.evaluate_telemetry(telemetry_payload_json)
+        result = self._run_tertiary(telemetry_payload_json, catalog_path=catalog_path)
         logger.info(
             "Cascade: Tier 3 (Deterministic SRE Heuristics) resolved incident triage offline."
         )

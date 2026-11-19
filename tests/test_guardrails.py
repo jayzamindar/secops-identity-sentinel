@@ -685,3 +685,70 @@ def test_guardrail_engine_missing_rollback_mitigation_error_caught() -> None:
         assert act is None
         assert quar is True
         assert reason == "MISSING_MANDATORY_ROLLBACK"
+
+
+def test_simulate_remediation_plan_rejects_empty_signature_when_verifying() -> None:
+    """Verify simulate_remediation_plan fails closed when plan_signature is empty."""
+    from secops_identity_sentinel.guardrails import simulate_remediation_plan
+
+    unsigned_plan = GuardrailEngine.build_remediation_plan(
+        incident_id="inc-unsigned-01",
+        proposed_actions=[
+            {
+                "action_type": "REVOKE_SESSION",
+                "target_resource": "alice@example.com",
+                "safety_risk": 3,
+                "justification": "Unsigned plan test",
+            }
+        ],
+        sign=False,
+    )
+    assert unsigned_plan.plan_signature == ""
+    sim = simulate_remediation_plan(unsigned_plan, verify_signature=True)
+    assert sim.quarantined is True
+    assert sim.quarantine_reason == "SIGNATURE_VERIFICATION_FAILED"
+
+
+def test_block_cidr_rejects_false_string_and_untrusted_idp_claims_break_glass() -> None:
+    """Verify 'false' string and untrusted idp_claims cannot bypass BLOCK_CIDR protection."""
+    act1, quar1, reason1 = GuardrailEngine.evaluate_and_overwrite_action(
+        {
+            "action_type": "BLOCK_CIDR",
+            "target_resource": "169.254.169.254/32",
+            "safety_risk": 4,
+            "tags": {"allow_break_glass": "false"},
+        }
+    )
+    assert act1 is None and quar1 is True and reason1 == "PROTECTED_INFRASTRUCTURE_SUBNET"
+
+    act2, quar2, reason2 = GuardrailEngine.evaluate_and_overwrite_action(
+        {
+            "action_type": "BLOCK_CIDR",
+            "target_resource": "10.0.0.0/16",
+            "safety_risk": 4,
+            "idp_claims": {"allow_break_glass": "true"},
+        }
+    )
+    assert act2 is None and quar2 is True and reason2 == "PROTECTED_INFRASTRUCTURE_SUBNET"
+
+
+def test_validate_target_resource_rejects_shell_metacharacters() -> None:
+    """Verify REVOKE_SESSION, ENFORCE_STEP_UP_MFA, and ISOLATE_WORKLOAD reject shell chars."""
+    for action_type in ("REVOKE_SESSION", "ENFORCE_STEP_UP_MFA", "ISOLATE_WORKLOAD"):
+        with pytest.raises(InvalidResourceIdentifierError):
+            validate_target_resource(action_type, "user1; rm -rf /")
+
+
+def test_mcp_auth_handles_non_ascii_api_key_without_type_error() -> None:
+    """Verify authenticate_request returns False cleanly on non-ASCII inbound_key."""
+    from secops_identity_sentinel.mcp.auth import authenticate_request
+
+    assert (
+        authenticate_request(
+            inbound_key="pässwörd-🔑",
+            expected_key="valid-ascii-secret-key",
+            environment="production",
+            require_auth=True,
+        )
+        is False
+    )

@@ -132,9 +132,9 @@ class GeminiReasonerClient:
                 "maxOutputTokens": self.max_output_tokens,
                 "responseMimeType": "application/json",
                 "responseSchema": clean_schema,
-            },
-            "thinkingConfig": {
-                "thinkingBudget": self.thinking_budget,
+                "thinkingConfig": {
+                    "thinkingBudget": self.thinking_budget,
+                },
             },
         }
         return payload
@@ -175,6 +175,9 @@ class GeminiReasonerClient:
             raise PrimaryReasonerError(
                 f"Failed compiling reasoning payload: {exc}", original_error=exc
             ) from exc
+
+        if not self.api_key.strip():
+            raise PrimaryReasonerError("GEMINI_API_KEY is not configured")
 
         endpoint = f"{self.BASE_URL}/{self.model_name}:generateContent"
         headers = {
@@ -232,23 +235,48 @@ class GeminiReasonerClient:
                 client.close()
 
         # 4. Extract token consumption and update tracker
-        usage_meta = data.get("usageMetadata", {})
-        prompt_tokens = usage_meta.get("promptTokenCount", 0)
-        candidates_tokens = usage_meta.get("candidatesTokenCount", 0)
-        self.tracker.record_usage(prompt_tokens, candidates_tokens)
+        try:
+            if not isinstance(data, dict):
+                raise PrimaryReasonerError("Gemini HTTP response JSON root is not an object")
 
-        # 5. Extract and parse candidate JSON text
-        candidates = data.get("candidates", [])
-        if not candidates:
-            raise PrimaryReasonerError("Gemini returned zero response candidates")
+            usage_meta = data.get("usageMetadata") or {}
+            if not isinstance(usage_meta, dict):
+                usage_meta = {}
+            prompt_tokens = int(usage_meta.get("promptTokenCount") or 0)
+            candidates_tokens = int(usage_meta.get("candidatesTokenCount") or 0)
+            thoughts_tokens = int(usage_meta.get("thoughtsTokenCount") or 0)
+            self.tracker.record_usage(prompt_tokens, candidates_tokens + thoughts_tokens)
 
-        candidate = candidates[0]
-        content = candidate.get("content", {})
-        parts = content.get("parts", [])
-        if not parts or "text" not in parts[0]:
-            raise PrimaryReasonerError("Gemini candidate contains no text content")
+            # 5. Extract and parse candidate JSON text (skipping thought=True parts)
+            candidates = data.get("candidates") or []
+            if not candidates or not isinstance(candidates, list):
+                prompt_feedback = data.get("promptFeedback")
+                raise PrimaryReasonerError(
+                    f"Gemini returned zero response candidates (promptFeedback={prompt_feedback})"
+                )
 
-        raw_text = parts[0]["text"].strip()
+            candidate = candidates[0] if isinstance(candidates[0], dict) else {}
+            finish_reason = candidate.get("finishReason")
+            content = candidate.get("content") or {}
+            parts = content.get("parts") or []
+            text_parts: list[str] = []
+            for p in parts:
+                if isinstance(p, dict) and not p.get("thought", False):
+                    txt = p.get("text")
+                    if isinstance(txt, str) and txt.strip():
+                        text_parts.append(txt)
+            if not text_parts:
+                raise PrimaryReasonerError(
+                    f"Gemini candidate contains no text content (finishReason={finish_reason})"
+                )
+
+            raw_text = text_parts[-1].strip()
+        except PrimaryReasonerError:
+            raise
+        except Exception as exc:
+            raise PrimaryReasonerError(
+                f"Malformed Gemini response structure: {exc}", original_error=exc
+            ) from exc
 
         try:
             parsed_json = json.loads(raw_text)
