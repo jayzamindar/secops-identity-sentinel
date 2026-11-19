@@ -9,7 +9,7 @@
 
 ## 📖 Playbook Usage Rules & Operating Protocol
 
-1. **One Phase Per AI Session (Mandatory):** Never batch multiple build prompts into a single AI conversation. Open a **fresh AI chat session in VS Code** for each numbered prompt (`BUILD-PROMPT-01` through `BUILD-PROMPT-12`). This guarantees 100% reasoning density and eliminates context saturation, code truncation, and hallucinated short-cuts.
+1. **One Phase Per AI Session (Mandatory):** Never batch multiple build prompts into a single AI conversation. Open a **fresh AI chat session in VS Code** for each numbered prompt (`BUILD-PROMPT-01` through `BUILD-PROMPT-13`). This guarantees 100% reasoning density and eliminates context saturation, code truncation, and hallucinated short-cuts.
 2. **Zero Hallucination Context Bounds:** Each prompt strictly specifies the **exact 2–4 input files** the AI agent is allowed to read. Do not read other directories or speculative files.
 3. **Exact Path Integrity:** Every file path created or modified must match the canonical repository paths defined in [`PROJECT_MAP.md`](PROJECT_MAP.md).
 4. **Verifiable Proof Gate:** Before completing any prompt, the AI agent must run the quiet verification command and output the verbatim terminal output showing zero errors and $\ge 90\%$ test coverage:
@@ -36,6 +36,7 @@
 | [`BUILD-PROMPT-10`](#build-prompt-10-standard-enterprise-cloud-production-release-documentation--operational-sign-off) | Phase 10 | Cloud deployment guide (AWS/Azure/K8s), 100/100 SRE production readiness review |
 | [`BUILD-PROMPT-11`](#build-prompt-11-dedicated-post-deployment-monitoring--observability) | Phase 11 | Four Golden Signals, Prometheus alerts, WAL bloat watch, AI token saturation runbooks |
 | [`BUILD-PROMPT-12`](#build-prompt-12-cross-model-adversarial-audit--wrinkle-elimination) | Phase 12 | Red-team adversarial regression suite, cross-document synchronization, `v1.0.0` release |
+| [`BUILD-PROMPT-13`](#build-prompt-13-post-audit-remediation-ai-cascade-wiring--production-hardening) | Phase 13 | Full-repo audit (`AUDIT_REMEDIATION_LOG.md`), AI cascade wiring, R1–R5 hardening, `requirements.lock` |
 
 ---
 
@@ -569,4 +570,47 @@ Create or update the following exact files:
 2. Mark Tasks 12.1–12.5 complete `[x]` in Enterprise_Blueprint.md.
 3. Commit: `git commit -am "release(v1.0.0): cross-model adversarial audit, document sync, and v1.0.0 release sign-off (Phase 12)"`.
 4. Emit Final Release Sign-Off Handover Block and celebrate production certification!
+```
+
+---
+
+### BUILD-PROMPT-13: Post-Audit Remediation, AI Cascade Wiring & Production Hardening
+
+```markdown
+Act as a Principal AI Systems Architect, Lead SRE, and Staff Security Engineer.
+
+### 1. Goal & Phase Traceability
+Satisfy Phase 13 (Post-Audit Remediation R1–R5) of Enterprise_Blueprint.md and docs/AUDIT_REMEDIATION_LOG.md. Eliminate all integration wiring gaps, live LLM API payload bugs, guardrail/auth/SSE loopholes, and doc-to-code mismatches.
+
+### 2. Read ONLY (Input Context)
+Read ONLY:
+- Enterprise_Blueprint.md (Phase 13 section)
+- docs/AUDIT_REMEDIATION_LOG.md
+- GEMINI.md (All sections)
+- PROJECT_MAP.md
+
+### 3. Create / Modify (Exact Target Paths)
+Update the following exact files:
+- src/secops_identity_sentinel/cli.py & src/secops_identity_sentinel/mcp/catalog.py (wire MultiModelCascadeRelay; add `--offline` on CLI)
+- src/secops_identity_sentinel/reasoner/client.py, openrouter.py, cascade.py, schema.py, tracker.py, retry.py, prompt_compiler.py
+- src/secops_identity_sentinel/guardrails/engine.py, simulation.py, rollback.py, signing.py, iam_policy.py
+- src/secops_identity_sentinel/mcp/auth.py, sse.py, stdio.py & src/secops_identity_sentinel/observability.py
+- src/secops_identity_sentinel/heuristics/blast_radius_rules.py, credential_stuffing_rules.py, impossible_travel_rules.py, privilege_escalation_rules.py, engine.py
+- src/secops_identity_sentinel/ledger/db.py, audit_logger.py & src/secops_identity_sentinel/config.py
+- tests/test_reasoner.py & tests/test_guardrails.py
+- requirements.lock, .github/workflows/ci.yml, docker-compose.yml, deploy/serverless-container.yaml
+- README.md, Enterprise_Blueprint.md, PROJECT_MAP.md, docs/AUDIT_REMEDIATION_LOG.md
+
+### 4. Non-Negotiable Invariants
+- **AI Cascade Wiring:** Wire `MultiModelCascadeRelay` into `cli.py` (`audit` with `--offline` flag) and `MCPHandler.triage_security_incident`, preserving Tier 3 deterministic fallback when API keys are absent or fail.
+- **Live LLM Payload Compliance:** Place `thinkingConfig` inside `generationConfig`, skip `thought: true` response parts, count `thoughtsTokenCount`, add `TriageAnalysisResponse` schema prompt to OpenRouter (`qwen/qwen-2.5-coder-32b-instruct`), and retain `gemini-3.8-flash-high` as configured Gemini default.
+- **Guardrails, Auth & SSE Hardening:** Reject empty `plan_signature` when `verify_signature=True`; isolate untrusted `idp_claims` and parse boolean flags strictly; enforce `SAFE_RESOURCE_ID_PATTERN` + `shlex.quote()`; encode `hmac.compare_digest()` inputs as UTF-8 bytes; check `NotAction`/`NotResource` wildcards; fix SSE `notifications/shutdown` drainage and `session_queues.get()` race; call `shutdown_observability()` on teardown.
+- **Supply Chain, Tests & Doc Sync:** Commit pinned `requirements.lock` verified in `.github/workflows/ci.yml`; remove temporary `.db` artifacts; add CLI/MCP cascade integration tests and R2 security regression tests; synchronize `README.md` (metrics + Section 9 Production Boundaries), `Enterprise_Blueprint.md`, `PROJECT_MAP.md`, and `docs/AUDIT_REMEDIATION_LOG.md`.
+
+### 5. Verification & Session Handover
+1. Run verification chain:
+   `ruff check src tests && mypy src && pytest -q`
+2. Mark Phase 13 complete `[x]` in Enterprise_Blueprint.md and R1–R5 complete in docs/AUDIT_REMEDIATION_LOG.md.
+3. Commit: `git commit -am "chore(audit): complete R1-R5 hardening, wire AI cascade, and sync docs (Phase 13)"`.
+4. Emit Final Production Handover Block.
 ```
